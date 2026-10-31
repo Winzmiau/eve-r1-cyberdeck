@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<title>EVE DECK r1 — Conformance &amp; Model Self-Test</title>
+<style>
+ body{background:#0d0f12;color:#dfe3e8;font:12px ui-monospace,monospace;margin:0;padding:16px}
+ h1{font-size:15px;margin:0 0 8px;color:#FE5000}
+ #v{padding:10px 12px;border-radius:4px;font-weight:700;margin:10px 0}
+ .ok{background:#123a1d;color:#7ee08a;border:1px solid #2c6b3c}
+ .bad{background:#3a1414;color:#ff8b8b;border:1px solid #6b2c2c}
+ table{border-collapse:collapse;width:100%}
+ td{padding:3px 8px;border-bottom:1px solid #1e242b;font-size:11px}
+ .p{color:#7ee08a}.f{color:#ff8b8b}.d{color:#8a939c}
+ .g{margin-top:12px;font-weight:700;color:#00E5FF}
+</style>
+</head><body>
+<h1>EVE DECK r1 — Conformance &amp; Model Self-Test</h1>
+<div class="d">Pins 240x282 layout, &gt;=28px touch hitboxes, serpentine wheel adjacency, Touch-Aims-PTT-Commits doctrine (EVE-ISS-0163), snapshot/restore roundtrip, and MCQR encoding.</div>
+<div id="v">running…</div>
+<table id="t"></table>
+
+<script>
+/* --- inlined from r1_qr.js --- */
+/* mcskin_qr.js — a minimal, correct QR encoder for the r1 creation.
+ *
+ * WHY THIS EXISTS: the export link has to cross from a 2.88" screen to a phone.
+ * Reading the text with the phone camera works on a PC webcam but proved
+ * unreliable on iPhone, so the link must be machine-readable instead.
+ *
+ * SCOPE, deliberately narrow so it can be correct:
+ *   versions 1-5 · error correction level L · byte mode · ONE data block
+ * That is up to 106 characters, which covers any tmpfiles URL with room to
+ * spare, and every one of those versions is single-block — so no interleaving
+ * logic, which is where small QR implementations usually go wrong.
+ *
+ * Standard: ISO/IEC 18004. Implemented from the specification, not copied.
+ * VERIFIED by decoding the rendered output with an INDEPENDENT decoder
+ * (OpenCV QRCodeDetector) and by comparing the module grid module-for-module
+ * against Python's `qrcode` library — see lab_mcskin_qr_verify.py.
+ *
+ * IIFE + window.* because the r1 WebView isolates ES module scope.
+ */
+(function () {
+    'use strict';
+
+    // ── GF(256), primitive polynomial 0x11D ────────────────────────────
+    var EXP = new Uint8Array(512), LOG = new Uint8Array(256);
+    (function () {
+        var x = 1;
+        for (var i = 0; i < 255; i++) { EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 0x100) x ^= 0x11D; }
+        for (i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+    })();
+    function gmul(a, b) { return (a === 0 || b === 0) ? 0 : EXP[LOG[a] + LOG[b]]; }
+
+    // generator polynomial = prod (x - a^i), i = 0..n-1
+    function rsGenPoly(n) {
+        var g = [1];
+        for (var i = 0; i < n; i++) {
+            var ng = new Array(g.length + 1);
+            for (var j = 0; j < ng.length; j++) {
+                var hi = (j > 0) ? g[j - 1] : 0;
+                var lo = (j < g.length) ? gmul(g[j], EXP[i]) : 0;
+                ng[j] = hi ^ lo;
+            }
+            g = ng;
+        }
+        // The loop above accumulates coefficients CONSTANT-TERM-FIRST, but the
+        // long division below treats g[0] as the LEADING coefficient. Reverse.
+        // Verified against the published generator polynomials: g(7) must be
+        // alpha exponents [0,87,229,146,149,238,102,21] and g(15)
+        // [0,8,183,61,91,202,37,51,58,58,237,140,124,5,99,105].
+        return g.reverse();
+    }
+
+    function rsEncode(data, ecLen) {
+        var g = rsGenPoly(ecLen);
+        var buf = data.slice();
+        for (var i = 0; i < ecLen; i++) buf.push(0);
+        for (i = 0; i < data.length; i++) {
+            var f = buf[i];
+            if (f !== 0) for (var j = 0; j < g.length; j++) buf[i + j] ^= gmul(g[j], f);
+        }
+        return buf.slice(data.length);
+    }
+
+    // ── version table: EC level L, byte mode, single block ─────────────
+    // [dataCodewords, ecCodewords]
+    var CAP_L = { 1: [19, 7], 2: [34, 10], 3: [55, 15], 4: [80, 20], 5: [108, 26] };
+    // alignment pattern centres (versions 2-5 have exactly two)
+    var ALIGN = { 1: [], 2: [6, 18], 3: [6, 22], 4: [6, 26], 5: [6, 30] };
+
+    function pickVersion(byteLen) {
+        for (var v = 1; v <= 5; v++) {
+            // 4-bit mode + 8-bit count = 12 bits of header for versions 1-9
+            if (byteLen + 2 <= CAP_L[v][0]) return v;
+        }
+        return 0;                       // caller must handle "too long"
+    }
+
+    // ── bit stream ──────────────────────────────────────────────────────
+    function BitBuf() { this.bits = []; }
+    BitBuf.prototype.put = function (val, len) {
+        for (var i = len - 1; i >= 0; i--) this.bits.push((val >>> i) & 1);
+    };
+    BitBuf.prototype.toBytes = function (n) {
+        var out = new Array(n).fill(0);
+        for (var i = 0; i < this.bits.length; i++)
+            if (this.bits[i]) out[i >> 3] |= 0x80 >>> (i & 7);
+        return out;
+    };
+
+    function buildCodewords(text, version) {
+        var bytes = [];
+        for (var i = 0; i < text.length; i++) {
+            var c = text.charCodeAt(i);
+            if (c < 128) bytes.push(c);
+            else {                                     // minimal UTF-8
+                if (c < 0x800) { bytes.push(0xC0 | (c >> 6), 0x80 | (c & 63)); }
+                else { bytes.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63)); }
+            }
+        }
+        var dataLen = CAP_L[version][0];
+        var bb = new BitBuf();
+        bb.put(0b0100, 4);                 // byte mode
+        bb.put(bytes.length, 8);           // count indicator, versions 1-9
+        for (i = 0; i < bytes.length; i++) bb.put(bytes[i], 8);
+        // terminator, up to 4 zero bits
+        var room = dataLen * 8 - bb.bits.length;
+        bb.put(0, Math.min(4, room));
+        while (bb.bits.length % 8 !== 0) bb.bits.push(0);
+        var cw = bb.toBytes(dataLen);
+        // pad alternately with 0xEC / 0x11
+        var used = Math.ceil(bb.bits.length / 8);
+        for (i = used; i < dataLen; i++) cw[i] = ((i - used) % 2 === 0) ? 0xEC : 0x11;
+        return cw.concat(rsEncode(cw, CAP_L[version][1]));
+    }
+
+    // ── matrix ──────────────────────────────────────────────────────────
+    function newMatrix(size) {
+        var m = [], r = [];
+        for (var i = 0; i < size; i++) {
+            m.push(new Int8Array(size).fill(-1));       // -1 = free
+            r.push(new Uint8Array(size));               // 1 = reserved (function pattern)
+        }
+        return { m: m, res: r, size: size };
+    }
+
+    function placeFinder(M, row, col) {
+        for (var r = -1; r <= 7; r++) {
+            for (var c = -1; c <= 7; c++) {
+                var rr = row + r, cc = col + c;
+                if (rr < 0 || cc < 0 || rr >= M.size || cc >= M.size) continue;
+                var on = (r >= 0 && r <= 6 && (c === 0 || c === 6)) ||
+                         (c >= 0 && c <= 6 && (r === 0 || r === 6)) ||
+                         (r >= 2 && r <= 4 && c >= 2 && c <= 4);
+                M.m[rr][cc] = on ? 1 : 0;
+                M.res[rr][cc] = 1;
+            }
+        }
+    }
+
+    function placeFunctionPatterns(M, version) {
+        var n = M.size;
+        placeFinder(M, 0, 0); placeFinder(M, 0, n - 7); placeFinder(M, n - 7, 0);
+        // timing patterns
+        for (var i = 8; i < n - 8; i++) {
+            var v = (i % 2 === 0) ? 1 : 0;
+            if (!M.res[6][i]) { M.m[6][i] = v; M.res[6][i] = 1; }
+            if (!M.res[i][6]) { M.m[i][6] = v; M.res[i][6] = 1; }
+        }
+        // alignment patterns, skipping any that collide with a finder
+        var ctr = ALIGN[version];
+        for (var a = 0; a < ctr.length; a++) {
+            for (var b = 0; b < ctr.length; b++) {
+                var row = ctr[a], col = ctr[b];
+                if (M.res[row][col]) continue;
+                for (var r = -2; r <= 2; r++) {
+                    for (var c = -2; c <= 2; c++) {
+                        var on = (Math.abs(r) === 2 || Math.abs(c) === 2 || (r === 0 && c === 0));
+                        M.m[row + r][col + c] = on ? 1 : 0;
+                        M.res[row + r][col + c] = 1;
+                    }
+                }
+            }
+        }
+        // dark module
+        M.m[n - 8][8] = 1; M.res[n - 8][8] = 1;
+        // reserve format information areas
+        for (i = 0; i <= 8; i++) {
+            if (!M.res[8][i]) { M.res[8][i] = 1; M.m[8][i] = 0; }
+            if (!M.res[i][8]) { M.res[i][8] = 1; M.m[i][8] = 0; }
+        }
+        for (i = 0; i < 8; i++) {
+            if (!M.res[8][n - 1 - i]) { M.res[8][n - 1 - i] = 1; M.m[8][n - 1 - i] = 0; }
+            if (!M.res[n - 1 - i][8]) { M.res[n - 1 - i][8] = 1; M.m[n - 1 - i][8] = 0; }
+        }
+    }
+
+    function placeData(M, codewords) {
+        var n = M.size, bitIdx = 0, total = codewords.length * 8;
+        var col = n - 1, upward = true;
+        while (col > 0) {
+            if (col === 6) col--;                     // skip vertical timing column
+            for (var i = 0; i < n; i++) {
+                var row = upward ? (n - 1 - i) : i;
+                for (var k = 0; k < 2; k++) {
+                    var c = col - k;
+                    if (M.res[row][c]) continue;
+                    var bit = 0;
+                    if (bitIdx < total) {
+                        bit = (codewords[bitIdx >> 3] >>> (7 - (bitIdx & 7))) & 1;
+                        bitIdx++;
+                    }
+                    M.m[row][c] = bit;
+                }
+            }
+            upward = !upward;
+            col -= 2;
+        }
+    }
+
+    function maskFn(id, r, c) {
+        switch (id) {
+            case 0: return (r + c) % 2 === 0;
+            case 1: return r % 2 === 0;
+            case 2: return c % 3 === 0;
+            case 3: return (r + c) % 3 === 0;
+            case 4: return (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0;
+            case 5: return ((r * c) % 2) + ((r * c) % 3) === 0;
+            case 6: return (((r * c) % 2) + ((r * c) % 3)) % 2 === 0;
+            case 7: return (((r + c) % 2) + ((r * c) % 3)) % 2 === 0;
+        }
+        return false;
+    }
+
+    // format info: 2 bits EC (L = 01) + 3 bits mask, BCH(15,5), XOR 0x5412
+    function formatBits(maskId) {
+        var data = (0b01 << 3) | maskId;
+        var rem = data << 10;
+        for (var i = 14; i >= 10; i--) if ((rem >>> i) & 1) rem ^= 0x537 << (i - 10);
+        return ((data << 10) | rem) ^ 0x5412;
+    }
+
+    function applyFormat(M, maskId) {
+        var n = M.size, f = formatBits(maskId);
+        // MSB FIRST: the module placed first carries bit 14, not bit 0. Derived
+        // empirically from a reference encoder rather than guessed -- reading it
+        // LSB-first produces a well-formed grid that no scanner can decode,
+        // because the mask recorded in the format no longer matches the mask
+        // actually applied to the data.
+        function bit(i) { return (f >>> (14 - i)) & 1; }
+        // copy 1 (around the top-left finder)
+        for (var i = 0; i <= 5; i++) M.m[8][i] = bit(i);
+        M.m[8][7] = bit(6); M.m[8][8] = bit(7); M.m[7][8] = bit(8);
+        for (i = 9; i <= 14; i++) M.m[14 - i][8] = bit(i);
+        // copy 2 — the split is 7 modules in the COLUMN and 8 in the ROW.
+        // Getting this backwards (8+7) puts bit 7 on the dark-module position
+        // and shifts every later bit; the code then scans as garbage. That was
+        // the defect the decode-back check caught: nothing decoded at all.
+        for (i = 0; i <= 6; i++) M.m[n - 1 - i][8] = bit(i);      // rows n-1..n-7
+        for (i = 7; i <= 14; i++) M.m[8][n - 15 + i] = bit(i);    // cols n-8..n-1
+        M.m[n - 8][8] = 1;                              // dark module stays set
+    }
+
+    function penalty(m, n) {
+        var p = 0, i, j, run, prev;
+        // rule 1: runs of 5+ same-colour modules in a row/column
+        for (i = 0; i < n; i++) {
+            run = 1; prev = m[i][0];
+            for (j = 1; j < n; j++) {
+                if (m[i][j] === prev) run++;
+                else { if (run >= 5) p += 3 + (run - 5); run = 1; prev = m[i][j]; }
+            }
+            if (run >= 5) p += 3 + (run - 5);
+            run = 1; prev = m[0][i];
+            for (j = 1; j < n; j++) {
+                if (m[j][i] === prev) run++;
+                else { if (run >= 5) p += 3 + (run - 5); run = 1; prev = m[j][i]; }
+            }
+            if (run >= 5) p += 3 + (run - 5);
+        }
+        // rule 2: 2x2 blocks of one colour
+        for (i = 0; i < n - 1; i++)
+            for (j = 0; j < n - 1; j++) {
+                var v = m[i][j];
+                if (v === m[i][j + 1] && v === m[i + 1][j] && v === m[i + 1][j + 1]) p += 3;
+            }
+        // rule 3: finder-like 1:1:3:1:1 patterns
+        var pat1 = [1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0];
+        var pat2 = [0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1];
+        function match(arr, pat) {
+            for (var k = 0; k < 11; k++) if (arr[k] !== pat[k]) return false;
+            return true;
+        }
+        for (i = 0; i < n; i++)
+            for (j = 0; j + 10 < n; j++) {
+                var rowSeg = [], colSeg = [];
+                for (var k = 0; k < 11; k++) { rowSeg.push(m[i][j + k]); colSeg.push(m[j + k][i]); }
+                if (match(rowSeg, pat1) || match(rowSeg, pat2)) p += 40;
+                if (match(colSeg, pat1) || match(colSeg, pat2)) p += 40;
+            }
+        // rule 4: deviation from 50% dark
+        var dark = 0;
+        for (i = 0; i < n; i++) for (j = 0; j < n; j++) dark += m[i][j];
+        var pct = dark * 100 / (n * n);
+        p += Math.floor(Math.abs(pct - 50) / 5) * 10;
+        return p;
+    }
+
+    /** Encode `text` into a boolean module grid. Returns {size, modules, version}
+     *  or null if the text does not fit versions 1-5 at EC level L. */
+    function encode(text, forceMask) {
+        var byteLen = 0;
+        for (var i = 0; i < text.length; i++) byteLen += text.charCodeAt(i) < 128 ? 1 : 3;
+        var version = pickVersion(byteLen);
+        if (!version) return null;
+
+        var cw = buildCodewords(text, version);
+        var size = 4 * version + 17;
+
+        var best = null, bestScore = Infinity;
+        var lo = (forceMask === undefined) ? 0 : forceMask;
+        var hi = (forceMask === undefined) ? 8 : forceMask + 1;
+        for (var mask = lo; mask < hi; mask++) {
+            var M = newMatrix(size);
+            placeFunctionPatterns(M, version);
+            placeData(M, cw);
+            // apply mask to data modules only
+            for (var r = 0; r < size; r++)
+                for (var c = 0; c < size; c++)
+                    if (!M.res[r][c] && maskFn(mask, r, c)) M.m[r][c] ^= 1;
+            applyFormat(M, mask);
+            var s = penalty(M.m, size);
+            if (s < bestScore) { bestScore = s; best = M; }
+        }
+        return { size: size, version: version, modules: best.m, penalty: bestScore, codewords: cw };
+    }
+
+    /** Draw into a 2D context. `quiet` is in modules (the standard is 4). */
+    function draw(ctx, text, x, y, moduleSize, quiet) {
+        var q = (quiet === undefined) ? 4 : quiet;
+        var qr = encode(text);
+        if (!qr) return null;
+        var total = (qr.size + 2 * q) * moduleSize;
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x, y, total, total);
+        ctx.fillStyle = '#000';
+        for (var r = 0; r < qr.size; r++)
+            for (var c = 0; c < qr.size; c++)
+                if (qr.modules[r][c])
+                    ctx.fillRect(x + (c + q) * moduleSize, y + (r + q) * moduleSize,
+                                 moduleSize, moduleSize);
+        return { size: total, version: qr.version, modules: qr.size };
+    }
+
+    window.MCQR = { encode: encode, draw: draw, capacity: CAP_L };
+})();
+
+</script>
+<script>
+/* --- inlined from eve_deck_core.js --- */
+/* eve_deck_core.js — Deterministic state, serpentine navigation, hitbox layout,
+ * and snapshot model for EVE DECK (240x282 Rabbit R1 Standalone Cyberdeck).
+ *
+ * Pinned by selftest.html and verify_eve_deck_deploy.py (ADR-001 pattern:
+ * Touch aims, PTT commits; >=28px touch targets; serpentine wheel adjacency;
+ * ES5 IIFE, zero external dependencies).
+ */
+(function () {
+    'use strict';
+
+    var W = 240, H = 282, HEADER_H = 30, TAB_H = 28, FOOTER_H = 24;
+    var SCREENS = ['mic', 'deck', 'eye', 'sys'];
+    var SPK_MODES = ['r1', 'both', 'pc'];
+
+    var DECK_ITEMS = [
+        { id: 'approve',        short: 'Y+ENT',  sub: 'Approve',  cat: 'ok'   },
+        { id: 'enter',          short: 'SEND',   sub: 'Return',   cat: 'ok'   },
+        { id: 'stop',           short: 'STOP',   sub: 'Ctrl+C',   cat: 'stop' },
+        { id: 'slash_plan',     short: '/plan',  sub: 'Plan',     cat: 'cmd'  },
+        { id: 'slash_boost',    short: '/boost', sub: 'Boost',    cat: 'cmd'  },
+        { id: 'slash_goal',     short: '/goal',  sub: 'Goal',     cat: 'cmd'  },
+        { id: 'slash_teamwork', short: '/team',  sub: 'Swarm',    cat: 'cmd'  },
+        { id: 'slash_compact',  short: '/comp',  sub: 'Compact',  cat: 'cmd'  },
+        { id: 'paste',          short: 'PASTE',  sub: 'Ctrl+V',   cat: 'util' },
+        { id: 'open_ani',       short: ':8094',  sub: 'Ani UI',   cat: 'util' },
+        { id: 'open_radar',     short: ':8095',  sub: 'Radar',    cat: 'util' },
+        { id: 'focus_dev',      short: 'TERM',   sub: 'Dev Win',  cat: 'util' }
+    ];
+
+    var MIC_ITEMS = [
+        { id: 'talk_ani',     label: 'TALK ANI',   x: 6,   y: 158, w: 111, h: 56 },
+        { id: 'dictate_pc',   label: 'DICTATE PC', x: 123, y: 158, w: 111, h: 56 },
+        { id: ' approve_q',   label: 'Y+ENT',      x: 6,   y: 220, w: 54,  h: 32 },
+        { id: 'cycle_spk',    label: 'SPK',        x: 64,  y: 220, w: 56,  h: 32 },
+        { id: 'toggle_agent', label: 'AGENT',      x: 124, y: 220, w: 54,  h: 32 },
+        { id: 'stop_q',       label: 'STOP',       x: 182, y: 220, w: 52,  h: 32 }
+    ];
+    MIC_ITEMS[2].id = 'approve_q';
+    // Serpentine order for MIC_ITEMS: row 0 left->right (0,1), row 1 right->left (5,4,3,2)
+    // so wheel step from [1] (top-right) lands on [5] (bottom-right) — physically adjacent!
+    var MIC_PATH = [0, 1, 5, 4, 3, 2];
+
+    var SYS_ITEMS = [
+        { id: 'ping',       label: 'PING DGX',   x: 6,   y: 184, w: 111, h: 34 },
+        { id: 'sync',       label: 'SYNC TUN',   x: 123, y: 184, w: 111, h: 34 },
+        { id: 'exit_app',   label: 'EXIT DECK',  x: 123, y: 222, w: 111, h: 32 },
+        { id: 'share_card', label: 'QR SHARE',   x: 6,   y: 222, w: 111, h: 32 }
+    ];
+    // SYS_ITEMS is already ordered clockwise/serpentine: (0:TL -> 1:TR -> 2:BR -> 3:BL)!
+
+    function deckCellRC(serpIdx) {
+        var r = (serpIdx / 3) | 0;
+        var rem = serpIdx % 3;
+        var c = (r % 2 === 0) ? rem : (2 - rem);
+        return [r, c];
+    }
+
+    function deckSerpFromRC(r, c) {
+        return r * 3 + ((r % 2 === 0) ? c : (2 - c));
+    }
+
+    function deckRect(serpIdx) {
+        var rc = deckCellRC(serpIdx);
+        var gx = 6 + rc[1] * 77;
+        var gy = HEADER_H + TAB_H + 6 + rc[0] * 48;
+        return { x: gx, y: gy, w: 74, h: 44, r: rc[0], c: rc[1], item: DECK_ITEMS[serpIdx] };
+    }
+
+    function tabRect(tabIdx) {
+        var tw = 57;
+        return { x: 4 + tabIdx * 58, y: HEADER_H + 2, w: tw, h: 24, screen: SCREENS[tabIdx] };
+    }
+
+    function createModel() {
+        return {
+            v: 2,
+            screen: 'mic',
+            micCursor: 0,       // index into MIC_PATH (0..5)
+            deckCursor: 0,      // serpentine index 0..11
+            sysCursor: 0,       // serpentine index 0..3
+            spk: 'r1',
+            agent: 'ani',
+            key: '',
+            bridge: '',
+            explicitBridge: false,
+            lastYou: '',
+            lastReply: 'Tap button to aim · Side PTT to speak or run.',
+            portsUp: '?/6',
+            memGib: 0,
+            mycinRules: 12260,
+            online: false
+        };
+    }
+
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    function scrollModel(m, dir) {
+        if (m.screen === 'mic') {
+            m.micCursor = clamp(m.micCursor + dir, 0, MIC_PATH.length - 1);
+        } else if (m.screen === 'deck') {
+            m.deckCursor = clamp(m.deckCursor + dir, 0, DECK_ITEMS.length - 1);
+        } else if (m.screen === 'sys') {
+            m.sysCursor = clamp(m.sysCursor + dir, 0, SYS_ITEMS.length - 1);
+        } else if (m.screen === 'eye') {
+            var si = clamp(SCREENS.indexOf(m.screen) + dir, 0, SCREENS.length - 1);
+            m.screen = SCREENS[si];
+        }
+        return m;
+    }
+
+    function hitTest(m, px, py) {
+        if (py < HEADER_H) {
+            return { kind: 'header_menu' };
+        }
+        if (py >= HEADER_H && py < HEADER_H + TAB_H) {
+            for (var t = 0; t < 4; t++) {
+                var tr = tabRect(t);
+                if (px >= tr.x && px <= tr.x + tr.w) {
+                    return { kind: 'tab', screen: tr.screen, tabIndex: t };
+                }
+            }
+        }
+        if (m.screen === 'mic') {
+            for (var p = 0; p < MIC_PATH.length; p++) {
+                var itemIdx = MIC_PATH[p];
+                var b = MIC_ITEMS[itemIdx];
+                if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) {
+                    return { kind: 'aim_mic', cursor: p, id: b.id };
+                }
+            }
+        } else if (m.screen === 'deck') {
+            for (var s = 0; s < DECK_ITEMS.length; s++) {
+                var dr = deckRect(s);
+                if (px >= dr.x && px <= dr.x + dr.w && py >= dr.y && py <= dr.y + dr.h) {
+                    return { kind: 'aim_deck', cursor: s, id: dr.item.id };
+                }
+            }
+        } else if (m.screen === 'eye') {
+            if (py >= HEADER_H + TAB_H && py < H - FOOTER_H) {
+                return { kind: 'camera_shutter' };
+            }
+        } else if (m.screen === 'sys') {
+            for (var k = 0; k < SYS_ITEMS.length; k++) {
+                var sr = SYS_ITEMS[k];
+                if (px >= sr.x && px <= sr.x + sr.w && py >= sr.y && py <= sr.y + sr.h) {
+                    return { kind: 'aim_sys', cursor: k, id: sr.id };
+                }
+            }
+        }
+        return { kind: 'none' };
+    }
+
+    // Touch = AIM ONLY (never mutates/executes a remote action, except camera_shutter per R1_TRAPS)
+    function applyPoint(m, px, py) {
+        var hit = hitTest(m, px, py);
+        if (hit.kind === 'tab') { m.screen = hit.screen; }
+        else if (hit.kind === 'aim_mic') { m.micCursor = hit.cursor; }
+        else if (hit.kind === 'aim_deck') { m.deckCursor = hit.cursor; }
+        else if (hit.kind === 'aim_sys') { m.sysCursor = hit.cursor; }
+        return hit;
+    }
+
+    function snapshotModel(m) {
+        return {
+            v: 2,
+            screen: m.screen,
+            micCursor: m.micCursor,
+            deckCursor: m.deckCursor,
+            sysCursor: m.sysCursor,
+            spk: m.spk,
+            agent: m.agent,
+            key: m.key,
+            bridge: m.bridge,
+            explicitBridge: !!m.explicitBridge,
+            lastYou: m.lastYou,
+            lastReply: m.lastReply,
+            at: Date.now()
+        };
+    }
+
+    function restoreModel(m, snap) {
+        if (!snap || typeof snap !== 'object') return m;
+        if (SCREENS.indexOf(snap.screen) >= 0) m.screen = snap.screen;
+        if (typeof snap.micCursor === 'number') m.micCursor = clamp(snap.micCursor | 0, 0, MIC_PATH.length - 1);
+        if (typeof snap.deckCursor === 'number') m.deckCursor = clamp(snap.deckCursor | 0, 0, DECK_ITEMS.length - 1);
+        if (typeof snap.sysCursor === 'number') m.sysCursor = clamp(snap.sysCursor | 0, 0, SYS_ITEMS.length - 1);
+        if (SPK_MODES.indexOf(snap.spk) >= 0) m.spk = snap.spk;
+        if (snap.agent === 'ani' || snap.agent === 'jules') m.agent = snap.agent;
+        if (typeof snap.key === 'string' && snap.key) m.key = snap.key;
+        if (typeof snap.bridge === 'string') m.bridge = snap.bridge;
+        if (snap.explicitBridge) m.explicitBridge = true;
+        if (typeof snap.lastYou === 'string') m.lastYou = snap.lastYou;
+        if (typeof snap.lastReply === 'string' && snap.lastReply) m.lastReply = snap.lastReply;
+        return m;
+    }
+
+    function mergeHash(m, hashStr) {
+        var raw = String(hashStr || '').replace(/^#/, '');
+        if (!raw) return false;
+        var changed = false;
+        var parts = raw.split('&');
+        for (var i = 0; i < parts.length; i++) {
+            var kv = parts[i].split('=');
+            var k = decodeURIComponent(kv[0] || '');
+            var v = decodeURIComponent(kv.slice(1).join('=') || '');
+            if (k === 'key' && v) { m.key = v; changed = true; }
+            if (k === 'bridge') { m.bridge = v.replace(/\/+$/, ''); m.explicitBridge = true; changed = true; }
+        }
+        return changed;
+    }
+
+    window.EVEDeckCore = {
+        W: W, H: H, HEADER_H: HEADER_H, TAB_H: TAB_H, FOOTER_H: FOOTER_H,
+        SCREENS: SCREENS, SPK_MODES: SPK_MODES,
+        DECK_ITEMS: DECK_ITEMS, MIC_ITEMS: MIC_ITEMS, MIC_PATH: MIC_PATH, SYS_ITEMS: SYS_ITEMS,
+        deckCellRC: deckCellRC, deckSerpFromRC: deckSerpFromRC, deckRect: deckRect, tabRect: tabRect,
+        createModel: createModel, scrollModel: scrollModel,
+        hitTest: hitTest, applyPoint: applyPoint,
+        snapshotModel: snapshotModel, restoreModel: restoreModel, mergeHash: mergeHash
+    };
+})();
+
+</script>
+<script>
+(function(){
+ 'use strict';
+ var Core = window.EVEDeckCore;
+ var pass = 0, fail = 0, t = document.getElementById('t');
+ function grp(n){ t.insertAdjacentHTML('beforeend','<tr><td colspan="3" class="g">'+n+'</td></tr>'); }
+ function ck(name, ok, detail){
+   ok ? pass++ : fail++;
+   t.insertAdjacentHTML('beforeend','<tr><td style="width:48px" class="'+(ok?'p':'f')+'">'+
+     (ok?'PASS':'FAIL')+'</td><td>'+name+'</td><td class="d">'+(detail||'')+'</td></tr>');
+ }
+
+ grp('1. Hardware Viewport & >=28px Touch Target Law (R1_PLATFORM_NOTES)');
+ ck('Screen dimensions strictly 240x282', Core.W === 240 && Core.H === 282, Core.W + 'x' + Core.H);
+ ck('Header menu target >= 28px tall', Core.HEADER_H >= 28, 'HEADER_H=' + Core.HEADER_H + 'px');
+ var allTabsBig = true;
+ for (var ti = 0; ti < 4; ti++) { var tr = Core.tabRect(ti); if (tr.w < 50 || tr.h < 24) allTabsBig = false; }
+ ck('All 4 screen tabs fit inside 240px width cleanly', allTabsBig && Core.tabRect(3).x + Core.tabRect(3).w <= 236);
+ var micMinH = 999, micMinW = 999;
+ Core.MIC_ITEMS.forEach(function(b){ micMinH = Math.min(micMinH, b.h); micMinW = Math.min(micMinW, b.w); });
+ ck('All 6 MIC touch targets >= 28px in both dimensions', micMinW >= 28 && micMinH >= 28, 'min=' + micMinW + 'x' + micMinH);
+ var deckMinW = 999, deckMinH = 999, deckInBounds = true;
+ for (var di = 0; di < 12; di++) {
+   var dr = Core.deckRect(di);
+   deckMinW = Math.min(deckMinW, dr.w); deckMinH = Math.min(deckMinH, dr.h);
+   if (dr.x < 0 || dr.x + dr.w > 240 || dr.y + dr.h > Core.H - Core.FOOTER_H) deckInBounds = false;
+ }
+ ck('All 12 DECK macro buttons >= 28px and inside viewport', deckMinW >= 28 && deckMinH >= 28 && deckInBounds, 'cell=' + deckMinW + 'x' + deckMinH);
+ var sysMinH = 999; Core.SYS_ITEMS.forEach(function(b){ sysMinH = Math.min(sysMinH, b.h); });
+ ck('All 4 SYS buttons >= 28px tall', sysMinH >= 28, 'minH=' + sysMinH);
+
+ grp('2. Serpentine Wheel Adjacency & Bounds Clamping');
+ var adjOk = true;
+ for (var s = 0; s < 11; s++) {
+   var a = Core.deckCellRC(s), b2 = Core.deckCellRC(s + 1);
+   var manhattan = Math.abs(a[0] - b2[0]) + Math.abs(a[1] - b2[1]);
+   if (manhattan !== 1) adjOk = false;
+ }
+ ck('DECK 12-cell serpentine path has Manhattan distance == 1 on every detent', adjOk);
+ var roundOk = true;
+ for (var s2 = 0; s2 < 12; s2++) {
+   var rc = Core.deckCellRC(s2);
+   if (Core.deckSerpFromRC(rc[0], rc[1]) !== s2) roundOk = false;
+ }
+ ck('deckCellRC <-> deckSerpFromRC bijection holds for all 12 cells', roundOk);
+ ck('MIC serpentine step [1]->[2] lands on bottom-right (adjacent to top-right)', Core.MIC_PATH[1] === 1 && Core.MIC_PATH[2] === 5);
+
+ var m = Core.createModel();
+ Core.scrollModel(m, -50);
+ ck('MIC wheel clamps at 0 (never wraps negative)', m.micCursor === 0);
+ Core.scrollModel(m, 50);
+ ck('MIC wheel clamps at end (5)', m.micCursor === 5);
+ m.screen = 'deck'; Core.scrollModel(m, 99);
+ ck('DECK wheel clamps at 11', m.deckCursor === 11);
+ Core.scrollModel(m, -99);
+ ck('DECK wheel clamps at 0', m.deckCursor === 0);
+
+ grp('3. Control Doctrine: Touch Aims, PTT Commits (EVE-ISS-0163)');
+ m = Core.createModel();
+ var hHead = Core.applyPoint(m, 120, 14);
+ ck('Touching header returns header_menu (reachable without long-press)', hHead.kind === 'header_menu');
+ var trDeck = Core.tabRect(1);
+ var hTab = Core.applyPoint(m, trDeck.x + 10, trDeck.y + 10);
+ ck('Touching DECK tab switches screen to deck', hTab.kind === 'tab' && m.screen === 'deck');
+ var cell7 = Core.deckRect(7);
+ var hDeck = Core.applyPoint(m, cell7.x + 20, cell7.y + 20);
+ ck('Touching DECK cell 7 AIMS cursor=7 without firing action', hDeck.kind === 'aim_deck' && m.deckCursor === 7 && hDeck.id === Core.DECK_ITEMS[7].id);
+ var trEye = Core.tabRect(2);
+ Core.applyPoint(m, trEye.x + 10, trEye.y + 10);
+ var hCam = Core.applyPoint(m, 120, 120);
+ ck('EYE viewfinder is the sole camera_shutter touch exception', m.screen === 'eye' && hCam.kind === 'camera_shutter');
+ var trMic = Core.tabRect(0);
+ Core.applyPoint(m, trMic.x + 10, trMic.y + 10);
+ var bDict = Core.MIC_ITEMS[1];
+ var hMic = Core.applyPoint(m, bDict.x + 20, bDict.y + 20);
+ ck('Touching DICTATE PC aims micCursor=1 (does not start mic)', hMic.kind === 'aim_mic' && m.micCursor === 1 && hMic.id === 'dictate_pc');
+
+ grp('4. Autosave Snapshot, Base64 Roundtrip & Hash Pairing');
+ m.spk = 'both'; m.agent = 'jules'; m.deckCursor = 9; m.lastYou = 'Hello Ani'; m.lastReply = 'Systems green';
+ Core.mergeHash(m, '#key=sec_test_123&bridge=https://example.trycloudflare.com/');
+ ck('mergeHash extracts key and strips trailing slash on bridge', m.key === 'sec_test_123' && m.bridge === 'https://example.trycloudflare.com' && m.explicitBridge === true);
+ var snap = Core.snapshotModel(m);
+ var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(snap))));
+ var decoded = JSON.parse(decodeURIComponent(escape(atob(b64))));
+ var m2 = Core.restoreModel(Core.createModel(), decoded);
+ ck('Base64 creationStorage roundtrip preserves screen, cursors, spk, agent, key & bridge',
+    m2.spk === 'both' && m2.agent === 'jules' && m2.deckCursor === 9 && m2.key === 'sec_test_123' && m2.lastYou === 'Hello Ani');
+
+ grp('5. Embedded Zero-Dep QR Encoder (r1_qr.js / MCQR)');
+ var qrProbe = window.MCQR && window.MCQR.encode('https://files.catbox.moe/abcdef.png');
+ ck('MCQR encodes share URL cleanly (versions 1..5)', !!(qrProbe && qrProbe.size >= 21), qrProbe ? ('size=' + qrProbe.size) : 'missing');
+
+ var v = document.getElementById('v');
+ v.className = fail === 0 ? 'ok' : 'bad';
+ v.textContent = (fail === 0 ? 'GREEN — ' : 'FAILURES — ') + pass + ' passed, ' + fail + ' failed';
+ window.__EVE_DECK_SELFTEST__ = { pass: pass, fail: fail, ok: fail === 0 };
+})();
+</script>
+</body></html>

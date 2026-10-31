@@ -1,522 +1,1432 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=240,height=282,initial-scale=1.0,viewport-fit=cover,user-scalable=no,maximum-scale=1.0">
 <title>EVE DECK</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
-html,body{width:240px;height:282px;overflow:hidden;position:fixed;background:#090b10;color:#e6edf3;font:11px -apple-system,BlinkMacSystemFont,sans-serif}
-#app{width:240px;height:282px;display:flex;flex-direction:column;background:linear-gradient(180deg,#0d1118 0%,#07090e 100%)}
-.top{height:28px;display:flex;align-items:center;gap:2px;padding:2px 3px;background:#111622;border-bottom:1px solid #222c3c}
-.tab{flex:1;height:22px;border:1px solid #253042;border-radius:5px;background:#161d2b;color:#93a3b8;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.tab.on{background:#FE5000;color:#fff;border-color:#ff7a3d}
-.ag{padding:0 6px;height:22px;border-radius:5px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid #ec4899;background:#2b1224;color:#ff80bf}
-.ag.jules{border-color:#00E5FF;background:#0d252e;color:#00E5FF}
-.pane{flex:1;display:none;flex-direction:column;padding:5px;gap:4px;overflow:hidden}
-.pane.on{display:flex}
-.wave-wrap{height:30px;background:#05070b;border:1px solid #1e293b;border-radius:6px;position:relative;overflow:hidden}
-#wave{width:228px;height:28px;display:block}
-.rec-dot{position:absolute;top:5px;right:6px;font-size:9px;font-weight:800;color:#ff4444;display:none}
-.rec-dot.on{display:block}
-.log{flex:1;background:#0c1017;border:1px solid #1c2536;border-radius:6px;padding:5px 6px;font-size:10.5px;line-height:1.32;overflow-y:auto;color:#d6e0ee;word-break:break-word}
-.log .you{color:#00E5FF;font-weight:700}
-.log .ai{color:#ff80bf;font-weight:700}
-.row2{display:flex;gap:4px;height:44px}
-.big-btn{flex:1;border-radius:8px;border:1.5px solid #2e3b52;background:#151c28;color:#fff;font-weight:800;font-size:10.5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer}
-.big-btn.ani{border-color:#ec4899;background:linear-gradient(180deg,#2d1226,#1a0b17)}
-.big-btn.pc{border-color:#00E5FF;background:linear-gradient(180deg,#0d2630,#09171e)}
-.big-btn.rec{background:#FE5000!important;border-color:#fff!important;color:#fff!important}
-.big-btn.sel{outline:2px solid #FE5000;outline-offset:-2px}
-.sub-row{display:flex;gap:4px;height:24px}
-.mini-btn{flex:1;border-radius:5px;border:1px solid #263246;background:#121824;color:#b8c7dc;font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.mini-btn.sel,.grid-btn.sel{outline:2px solid #FE5000;outline-offset:-2px}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:1fr;gap:4px;flex:1}
-.grid-btn{border-radius:7px;border:1px solid #293548;background:#141b27;color:#eef4fc;font-size:10px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;text-align:center;padding:2px}
-.grid-btn:active,.big-btn:active,.mini-btn:active{background:#FE5000;color:#fff}
-.grid-btn.ok{border-color:#22c55e;color:#86efac}
-.grid-btn.stop{border-color:#ef4444;color:#fca5a5}
-.grid-btn.cmd{border-color:#00E5FF;color:#7dd3fc}
-.cam-box{width:228px;height:142px;background:#000;border:1px solid #273347;border-radius:6px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
-#cam-canvas{width:228px;height:142px;display:block}
-.sys-box{background:#0c111a;border:1px solid #1e293b;border-radius:6px;padding:6px;font-size:10px;line-height:1.45;flex:1;color:#cbd5e1}
-.foot{height:18px;background:#0c1018;border-top:1px solid #1c2434;padding:0 6px;display:flex;align-items:center;justify-content:space-between;font-size:9px;color:#8b9bb4}
-.dot{width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block;margin-right:4px}
-.dot.ok{background:#22c55e}
+  /* Single 240x282 Canvas 2D per r1-creation-kit shell/app_template.html:
+     DOM layout is unreliable in the R1 WebView; Canvas 2D is rock-solid. */
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+  html, body { width: 240px; height: 282px; overflow: hidden; position: fixed;
+               background: #000; touch-action: none; }
+  canvas { display: block; width: 240px; height: 282px; background: #090c12; }
 </style>
 </head>
 <body>
-<div id="app">
-  <div class="top">
-    <div class="tab on" data-tab="mic">MIC</div>
-    <div class="tab" data-tab="deck">DECK</div>
-    <div class="tab" data-tab="eye">EYE</div>
-    <div class="tab" data-tab="sys">SYS</div>
-    <div id="ag-btn" class="ag" title="Switch Ani / Jules">ANI</div>
-  </div>
-
-  <div id="pane-mic" class="pane on">
-    <div class="wave-wrap">
-      <canvas id="wave" width="228" height="28"></canvas>
-      <div id="rec-badge" class="rec-dot">● REC</div>
-    </div>
-    <div id="chat-log" class="log"><b>EVE Cyberdeck Ready.</b><br>Tap button or press R1 Side PTT to speak to Ani/Jules or dictate to PC cursor.</div>
-    <div class="row2">
-      <div id="btn-ani" class="big-btn ani sel" data-idx="0"><span>🗣️ TALK ANI</span><small id="lbl-ptt-ani" style="font-size:8px;opacity:.8">Tap or Side PTT</small></div>
-      <div id="btn-pc" class="big-btn pc" data-idx="1"><span>⌨️ DICTATE PC</span><small style="font-size:8px;opacity:.8">Types at Cursor</small></div>
-    </div>
-    <div class="sub-row">
-      <div id="btn-spk" class="mini-btn" data-idx="2">🔊 SPK: R1</div>
-      <div id="btn-quick-y" class="mini-btn" data-idx="3">✅ Y+ENT</div>
-      <div id="btn-quick-stop" class="mini-btn" data-idx="4">🛑 STOP</div>
-    </div>
-  </div>
-
-  <div id="pane-deck" class="pane">
-    <div id="deck-grid" class="grid"></div>
-  </div>
-
-  <div id="pane-eye" class="pane">
-    <div class="cam-box"><canvas id="cam-canvas" width="228" height="142"></canvas></div>
-    <div id="eye-log" class="log" style="max-height:48px;font-size:9.5px">360° AI Eye -> meta/muse-glimmer. Tap SNAP or press Side PTT.</div>
-    <div class="sub-row" style="height:28px">
-      <div id="btn-snap" class="mini-btn" style="background:#FE5000;color:#fff;border-color:#ff7a3d">📸 SNAP &amp; ASK ANI</div>
-      <div id="btn-cam-retry" class="mini-btn">🔄 CAM</div>
-    </div>
-  </div>
-
-  <div id="pane-sys" class="pane">
-    <div id="sys-info" class="sys-box">Checking DGX Spark Sovereign Bridge...</div>
-    <div class="sub-row" style="height:28px">
-      <div id="btn-sync" class="mini-btn" style="border-color:#00E5FF;color:#00E5FF">🔄 SYNC TUNNEL</div>
-      <div id="btn-ping" class="mini-btn">📡 PING</div>
-      <div id="btn-exit" class="mini-btn" style="border-color:#ef4444;color:#fca5a5">✖ EXIT</div>
-    </div>
-  </div>
-
-  <div class="foot">
-    <span><i id="conn-dot" class="dot"></i><span id="foot-msg">booting...</span></span>
-    <span id="foot-right">wheel+PTT</span>
-  </div>
-</div>
 <script>
-(function(){
-  'use strict';
-  var STORE_KEY = 'eve_r1_cyberdeck_v1';
-  var TABS = ['mic', 'deck', 'eye', 'sys'];
-  var SPK_MODES = ['r1', 'both', 'pc'];
-  var DECK_BTNS = [
-    { id: 'approve', label: '✅ Y+ENT', cls: 'ok' },
-    { id: 'enter', label: '⏎ SEND', cls: 'ok' },
-    { id: 'stop', label: '🛑 STOP', cls: 'stop' },
-    { id: 'slash_plan', label: '📐 /plan', cls: 'cmd' },
-    { id: 'slash_boost', label: '🚀 /boost', cls: 'cmd' },
-    { id: 'slash_goal', label: '🎯 /goal', cls: 'cmd' },
-    { id: 'slash_teamwork', label: '🐝 /team', cls: 'cmd' },
-    { id: 'slash_compact', label: '📦 /comp', cls: 'cmd' },
-    { id: 'paste', label: '📋 PASTE', cls: '' },
-    { id: 'open_ani', label: '🎀 8094', cls: '' },
-    { id: 'open_radar', label: '📡 8095', cls: '' },
-    { id: 'focus_dev', label: '💻 TERM', cls: '' }
-  ];
+/* --- inlined from r1_qr.js --- */
+/* mcskin_qr.js — a minimal, correct QR encoder for the r1 creation.
+ *
+ * WHY THIS EXISTS: the export link has to cross from a 2.88" screen to a phone.
+ * Reading the text with the phone camera works on a PC webcam but proved
+ * unreliable on iPhone, so the link must be machine-readable instead.
+ *
+ * SCOPE, deliberately narrow so it can be correct:
+ *   versions 1-5 · error correction level L · byte mode · ONE data block
+ * That is up to 106 characters, which covers any tmpfiles URL with room to
+ * spare, and every one of those versions is single-block — so no interleaving
+ * logic, which is where small QR implementations usually go wrong.
+ *
+ * Standard: ISO/IEC 18004. Implemented from the specification, not copied.
+ * VERIFIED by decoding the rendered output with an INDEPENDENT decoder
+ * (OpenCV QRCodeDetector) and by comparing the module grid module-for-module
+ * against Python's `qrcode` library — see lab_mcskin_qr_verify.py.
+ *
+ * IIFE + window.* because the r1 WebView isolates ES module scope.
+ */
+(function () {
+    'use strict';
 
-  var cfg = { key: '', bridge: '', spk: 'r1', agent: 'ani', explicitBridge: false };
-  var tab = 'mic';
-  var micSel = 0; // 0=talk_ani, 1=dictate_pc, 2=spk, 3=y+ent, 4=stop
-  var deckSel = 0;
-  var recState = { active: false, mode: 'talk_ani', mr: null, chunks: [], stream: null, actx: null, analyser: null };
-  var cam = { stream: null, video: null, round: 0, starting: false, busy: false };
-  var curAudio = null;
+    // ── GF(256), primitive polynomial 0x11D ────────────────────────────
+    var EXP = new Uint8Array(512), LOG = new Uint8Array(256);
+    (function () {
+        var x = 1;
+        for (var i = 0; i < 255; i++) { EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 0x100) x ^= 0x11D; }
+        for (i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+    })();
+    function gmul(a, b) { return (a === 0 || b === 0) ? 0 : EXP[LOG[a] + LOG[b]]; }
 
-  function $(id){ return document.getElementById(id); }
-  function foot(msg, ok){
-    $('foot-msg').textContent = msg;
-    if (ok === true) $('conn-dot').className = 'dot ok';
-    else if (ok === false) $('conn-dot').className = 'dot';
-  }
-
-  function storageSave(){
-    var raw = btoa(unescape(encodeURIComponent(JSON.stringify({ key: cfg.key, bridge: cfg.bridge, spk: cfg.spk }))));
-    try { if (window.creationStorage && creationStorage.plain) creationStorage.plain.setItem(STORE_KEY, raw); } catch(e){}
-    try { localStorage.setItem(STORE_KEY, raw); } catch(e){}
-  }
-  function storageLoad(cb){
-    function decode(raw){
-      if (!raw) return null;
-      try { return JSON.parse(decodeURIComponent(escape(atob(raw)))); } catch(e){ return null; }
-    }
-    if (window.creationStorage && creationStorage.plain) {
-      try {
-        Promise.resolve(creationStorage.plain.getItem(STORE_KEY)).then(function(r){
-          cb(decode(r) || decode(localStorage.getItem(STORE_KEY)));
-        }).catch(function(){ cb(decode(localStorage.getItem(STORE_KEY))); });
-        return;
-      } catch(e){}
-    }
-    try { cb(decode(localStorage.getItem(STORE_KEY))); } catch(e){ cb(null); }
-  }
-
-  function apiBase(){ return (cfg.bridge || '').replace(/\/+$/, ''); }
-  function apiFetch(path, opts, retried){
-    opts = opts || {};
-    opts.headers = opts.headers || {};
-    if (cfg.key) opts.headers['Authorization'] = 'Bearer ' + cfg.key;
-    return fetch(apiBase() + path, opts).then(function(r){
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    }).catch(function(err){
-      if (!retried && !cfg.explicitBridge) {
-        return syncEndpoint().then(function(){ return apiFetch(path, opts, true); });
-      }
-      throw err;
-    });
-  }
-
-  function syncEndpoint(){
-    return fetch('./endpoint.json?t=' + Date.now(), { cache: 'no-store' })
-      .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(d){
-        if (d && typeof d.bridge_url === 'string' && !cfg.explicitBridge) {
-          cfg.bridge = d.bridge_url.replace(/\/+$/, '');
-          storageSave();
+    // generator polynomial = prod (x - a^i), i = 0..n-1
+    function rsGenPoly(n) {
+        var g = [1];
+        for (var i = 0; i < n; i++) {
+            var ng = new Array(g.length + 1);
+            for (var j = 0; j < ng.length; j++) {
+                var hi = (j > 0) ? g[j - 1] : 0;
+                var lo = (j < g.length) ? gmul(g[j], EXP[i]) : 0;
+                ng[j] = hi ^ lo;
+            }
+            g = ng;
         }
-        return d;
-      }).catch(function(){ return null; });
-  }
-
-  function updateSpkBtn(){ $('btn-spk').textContent = '🔊 SPK: ' + cfg.spk.toUpperCase(); }
-  function updateAgentBadge(ag){
-    cfg.agent = (ag || 'ani').toLowerCase();
-    var b = $('ag-btn');
-    b.textContent = cfg.agent.toUpperCase();
-    b.className = 'ag' + (cfg.agent === 'jules' ? ' jules' : '');
-    $('btn-ani').querySelector('span').textContent = '🗣️ TALK ' + cfg.agent.toUpperCase();
-  }
-
-  function setTab(t){
-    tab = t;
-    var tabs = document.querySelectorAll('.tab');
-    for (var i = 0; i < tabs.length; i++) tabs[i].className = 'tab' + (tabs[i].getAttribute('data-tab') === t ? ' on' : '');
-    for (var j = 0; j < TABS.length; j++) $('pane-' + TABS[j]).className = 'pane' + (TABS[j] === t ? ' on' : '');
-    if (t === 'eye') openCamera(); else stopCamera();
-    if (t === 'sys') refreshStatus();
-  }
-
-  function renderDeck(){
-    var g = $('deck-grid'); g.innerHTML = '';
-    DECK_BTNS.forEach(function(b, idx){
-      var el = document.createElement('div');
-      el.className = 'grid-btn ' + b.cls + (idx === deckSel ? ' sel' : '');
-      el.textContent = b.label;
-      el.addEventListener('click', function(){ deckSel = idx; highlightDeck(); runDeckAction(b.id); });
-      g.appendChild(el);
-    });
-  }
-  function highlightDeck(){
-    var els = $('deck-grid').children;
-    for (var i = 0; i < els.length; i++) {
-      els[i].className = 'grid-btn ' + DECK_BTNS[i].cls + (i === deckSel ? ' sel' : '');
+        // The loop above accumulates coefficients CONSTANT-TERM-FIRST, but the
+        // long division below treats g[0] as the LEADING coefficient. Reverse.
+        // Verified against the published generator polynomials: g(7) must be
+        // alpha exponents [0,87,229,146,149,238,102,21] and g(15)
+        // [0,8,183,61,91,202,37,51,58,58,237,140,124,5,99,105].
+        return g.reverse();
     }
-  }
-  function highlightMic(){
-    var ids = ['btn-ani', 'btn-pc', 'btn-spk', 'btn-quick-y', 'btn-quick-stop'];
-    for (var i = 0; i < ids.length; i++) {
-      var el = $(ids[i]);
-      el.classList.toggle('sel', i === micSel);
-    }
-  }
 
-  function runDeckAction(act){
-    foot('sending ' + act + '...', true);
-    apiFetch('/api/r1/action', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: act })
-    }).then(function(res){
-      if (res.active_agent) updateAgentBadge(res.active_agent);
-      foot(res.label || 'done', true);
-    }).catch(function(e){ foot('err: ' + e.message, false); });
-  }
-
-  function playBase64Audio(b64, mime){
-    if (!b64) return;
-    try {
-      if (curAudio) { curAudio.pause(); curAudio = null; }
-      curAudio = new Audio('data:' + (mime || 'audio/wav') + ';base64,' + b64);
-      var p = curAudio.play();
-      if (p && p.catch) p.catch(function(){});
-    } catch(e){}
-  }
-
-  function pickMime(){
-    if (typeof MediaRecorder === 'undefined') return '';
-    var types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
-    for (var i = 0; i < types.length; i++) {
-      if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(types[i])) return types[i];
-    }
-    return '';
-  }
-
-  function drawWaveLoop(){
-    var cv = $('wave'), x = cv.getContext('2d');
-    requestAnimationFrame(drawWaveLoop);
-    x.fillStyle = '#05070b'; x.fillRect(0, 0, cv.width, cv.height);
-    if (!recState.active || !recState.analyser) {
-      x.strokeStyle = '#1e293b'; x.beginPath(); x.moveTo(0, 14); x.lineTo(cv.width, 14); x.stroke();
-      return;
-    }
-    var buf = new Uint8Array(recState.analyser.fftSize);
-    recState.analyser.getByteTimeDomainData(buf);
-    x.strokeStyle = recState.mode === 'dictate_pc' ? '#00E5FF' : '#FE5000';
-    x.lineWidth = 1.6; x.beginPath();
-    var slice = cv.width / buf.length;
-    for (var i = 0; i < buf.length; i++) {
-      var v = buf[i] / 128.0, y = v * 14;
-      if (i === 0) x.moveTo(0, y); else x.lineTo(i * slice, y);
-    }
-    x.stroke();
-  }
-
-  function toggleVoice(mode){
-    if (recState.active) { stopVoice(); return; }
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      $('chat-log').innerHTML = '<b>Mic requires HTTPS!</b> Use the paired QR code.';
-      foot('mic blocked (need https)', false);
-      return;
-    }
-    recState.mode = mode;
-    foot('opening R1 mic...', true);
-    navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then(function(stream){
-      recState.stream = stream;
-      recState.chunks = [];
-      var mime = pickMime();
-      var mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-      recState.mr = mr;
-      try {
-        var AC = window.AudioContext || window.webkitAudioContext;
-        if (AC) {
-          recState.actx = new AC();
-          var src = recState.actx.createMediaStreamSource(stream);
-          recState.analyser = recState.actx.createAnalyser();
-          recState.analyser.fftSize = 128;
-          src.connect(recState.analyser);
+    function rsEncode(data, ecLen) {
+        var g = rsGenPoly(ecLen);
+        var buf = data.slice();
+        for (var i = 0; i < ecLen; i++) buf.push(0);
+        for (i = 0; i < data.length; i++) {
+            var f = buf[i];
+            if (f !== 0) for (var j = 0; j < g.length; j++) buf[i + j] ^= gmul(g[j], f);
         }
-      } catch(e){}
-      mr.ondataavailable = function(ev){ if (ev.data && ev.data.size > 0) recState.chunks.push(ev.data); };
-      mr.onstop = function(){ sendVoiceClip(mr.mimeType || mime || 'audio/webm'); };
-      mr.start();
-      recState.active = true;
-      $('rec-badge').className = 'rec-dot on';
-      $(mode === 'dictate_pc' ? 'btn-pc' : 'btn-ani').classList.add('rec');
-      foot('recording... tap/PTT to send', true);
-    }).catch(function(e){
-      foot('mic err: ' + (e.name || e.message), false);
-    });
-  }
+        return buf.slice(data.length);
+    }
 
-  function stopVoice(){
-    if (!recState.active) return;
-    recState.active = false;
-    $('rec-badge').className = 'rec-dot';
-    $('btn-ani').classList.remove('rec');
-    $('btn-pc').classList.remove('rec');
-    try { if (recState.mr && recState.mr.state !== 'inactive') recState.mr.stop(); } catch(e){}
-    try { if (recState.stream) recState.stream.getTracks().forEach(function(t){ t.stop(); }); } catch(e){}
-    try { if (recState.actx) recState.actx.close(); } catch(e){}
-    recState.stream = null; recState.actx = null; recState.analyser = null;
-  }
+    // ── version table: EC level L, byte mode, single block ─────────────
+    // [dataCodewords, ecCodewords]
+    var CAP_L = { 1: [19, 7], 2: [34, 10], 3: [55, 15], 4: [80, 20], 5: [108, 26] };
+    // alignment pattern centres (versions 2-5 have exactly two)
+    var ALIGN = { 1: [], 2: [6, 18], 3: [6, 22], 4: [6, 26], 5: [6, 30] };
 
-  function sendVoiceClip(mime){
-    if (!recState.chunks.length) { foot('empty clip', false); return; }
-    var ext = mime.indexOf('mp4') >= 0 ? 'r1.mp4' : 'r1.webm';
-    var blob = new Blob(recState.chunks, { type: mime });
-    var fd = new FormData();
-    fd.append('audio', blob, ext);
-    fd.append('mode', recState.mode);
-    fd.append('speaker', cfg.spk);
-    foot(recState.mode === 'dictate_pc' ? 'typing on PC...' : 'thinking...', true);
-    $('chat-log').innerHTML = '<i>Transcribing via Faster-Whisper...</i>';
-    apiFetch('/api/r1/voice', { method: 'POST', body: fd }).then(function(res){
-      if (!res.ok) { $('chat-log').textContent = res.error || 'Voice error'; foot('voice err', false); return; }
-      var agName = (res.agent || cfg.agent || 'ani').toUpperCase();
-      if (res.agent) updateAgentBadge(res.agent);
-      $('chat-log').innerHTML = '<span class="you">YOU:</span> ' + (res.transcript || '(empty)') +
-        '<br><span class="ai">' + (recState.mode === 'dictate_pc' ? 'PC' : agName) + ':</span> ' + (res.reply || '');
-      if (res.audio_base64) playBase64Audio(res.audio_base64, res.audio_mime);
-      foot(recState.mode === 'dictate_pc' ? 'typed at cursor!' : agName + ' replied', true);
-    }).catch(function(e){
-      $('chat-log').textContent = 'Bridge error: ' + e.message;
-      foot('bridge offline', false);
-    });
-  }
+    function pickVersion(byteLen) {
+        for (var v = 1; v <= 5; v++) {
+            // 4-bit mode + 8-bit count = 12 bits of header for versions 1-9
+            if (byteLen + 2 <= CAP_L[v][0]) return v;
+        }
+        return 0;                       // caller must handle "too long"
+    }
 
-  // Proven 3-round Rabbit R1 camera activation adapted from Winzmiau/mcskin-r1
-  function stopCamera(){
-    if (cam.stream) { try { cam.stream.getTracks().forEach(function(t){ t.stop(); }); } catch(e){} cam.stream = null; }
-    cam.video = null; cam.starting = false;
-  }
-  function openCamera(){
-    if (cam.stream || cam.starting) return;
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      $('eye-log').textContent = 'Camera needs HTTPS Creation mode.'; return;
-    }
-    cam.starting = true; cam.round = 0;
-    function tryRound(){
-      var base = [{ video: { facingMode: { ideal: 'environment' } }, audio: false }, { video: true, audio: false }];
-      Promise.resolve().then(function(){ return navigator.mediaDevices.enumerateDevices(); }).then(function(devs){
-        var cams = (devs || []).filter(function(d){ return d.kind === 'videoinput' && d.deviceId; });
-        var list = cams.map(function(d){ return { video: { deviceId: { exact: d.deviceId } }, audio: false }; }).concat(base);
-        attempt(list, 0);
-      }).catch(function(){ attempt(base, 0); });
-    }
-    function attempt(list, i){
-      if (i >= list.length) {
-        cam.starting = false; cam.round++;
-        if (cam.round < 3) setTimeout(function(){ cam.starting = true; tryRound(); }, 450 * cam.round);
-        else $('eye-log').textContent = 'Tap CAM or press PTT to wake R1 Eye.';
-        return;
-      }
-      stopCamera();
-      navigator.mediaDevices.getUserMedia(list[i]).then(function(st){
-        cam.stream = st;
-        var v = document.createElement('video');
-        v.setAttribute('playsinline', ''); v.setAttribute('autoplay', ''); v.muted = true;
-        v.srcObject = st;
-        var p = v.play(); if (p && p.catch) p.catch(function(){});
-        cam.video = v; cam.starting = false;
-        $('eye-log').textContent = 'AI Eye live. Tap SNAP or press Side PTT.';
-      }).catch(function(){ attempt(list, i + 1); });
-    }
-    tryRound();
-  }
-  function drawCamLoop(){
-    requestAnimationFrame(drawCamLoop);
-    if (tab !== 'eye') return;
-    var cv = $('cam-canvas'), x = cv.getContext('2d');
-    if (cam.video && cam.video.readyState >= 2) {
-      x.drawImage(cam.video, 0, 0, cv.width, cv.height);
-      x.strokeStyle = 'rgba(0,229,255,0.6)'; x.strokeRect(4, 4, cv.width - 8, cv.height - 8);
-    }
-  }
-  function snapVision(){
-    if (cam.busy) return;
-    if (!cam.video || cam.video.readyState < 2) { openCamera(); return; }
-    cam.busy = true;
-    var cv = $('cam-canvas');
-    $('eye-log').textContent = 'Sending frame to meta/muse-glimmer...';
-    foot('analyzing vision...', true);
-    var sendBlob = function(blob){
-      var fd = new FormData();
-      fd.append('image', blob, 'eye.jpg');
-      fd.append('speaker', cfg.spk);
-      apiFetch('/api/r1/vision', { method: 'POST', body: fd }).then(function(res){
-        cam.busy = false;
-        $('eye-log').textContent = res.ok ? res.reply : (res.error || 'Vision error');
-        if (res.audio_base64) playBase64Audio(res.audio_base64, 'audio/wav');
-        foot(res.ok ? 'vision ready' : 'vision err', !!res.ok);
-      }).catch(function(e){ cam.busy = false; $('eye-log').textContent = 'Err: ' + e.message; foot('vision offline', false); });
+    // ── bit stream ──────────────────────────────────────────────────────
+    function BitBuf() { this.bits = []; }
+    BitBuf.prototype.put = function (val, len) {
+        for (var i = len - 1; i >= 0; i--) this.bits.push((val >>> i) & 1);
     };
-    if (cv.toBlob) cv.toBlob(sendBlob, 'image/jpeg', 0.84);
-    else {
-      var b64 = cv.toDataURL('image/jpeg', 0.84).split(',')[1], bin = atob(b64), arr = new Uint8Array(bin.length);
-      for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-      sendBlob(new Blob([arr], { type: 'image/jpeg' }));
-    }
-  }
+    BitBuf.prototype.toBytes = function (n) {
+        var out = new Array(n).fill(0);
+        for (var i = 0; i < this.bits.length; i++)
+            if (this.bits[i]) out[i >> 3] |= 0x80 >>> (i & 7);
+        return out;
+    };
 
-  function refreshStatus(){
-    apiFetch('/api/r1/status').then(function(st){
-      updateAgentBadge(st.active_agent);
-      foot('DGX online · ' + st.ports_up + ' ports', true);
-      $('sys-info').innerHTML =
-        '<b>Bridge:</b> ' + (apiBase() || 'same-origin (:8098)') + '<br>' +
-        '<b>Active Agent:</b> ' + st.active_agent.toUpperCase() + '<br>' +
-        '<b>Ports Up:</b> ' + st.ports_up + ' · <b>RAM Free:</b> ' + st.mem_avail_gib + ' GiB<br>' +
-        '<b>MYCIN Rules:</b> ' + st.mycin_rules + '<br>' +
-        '<b>Models:</b> ' + (st.loaded_models || []).join(', ');
-    }).catch(function(e){
-      foot('offline (' + e.message + ')', false);
-      $('sys-info').innerHTML = '<b>Bridge Offline:</b> ' + e.message + '<br>Tap <b>SYNC TUNNEL</b> to fetch latest endpoint.json.';
+    function buildCodewords(text, version) {
+        var bytes = [];
+        for (var i = 0; i < text.length; i++) {
+            var c = text.charCodeAt(i);
+            if (c < 128) bytes.push(c);
+            else {                                     // minimal UTF-8
+                if (c < 0x800) { bytes.push(0xC0 | (c >> 6), 0x80 | (c & 63)); }
+                else { bytes.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63)); }
+            }
+        }
+        var dataLen = CAP_L[version][0];
+        var bb = new BitBuf();
+        bb.put(0b0100, 4);                 // byte mode
+        bb.put(bytes.length, 8);           // count indicator, versions 1-9
+        for (i = 0; i < bytes.length; i++) bb.put(bytes[i], 8);
+        // terminator, up to 4 zero bits
+        var room = dataLen * 8 - bb.bits.length;
+        bb.put(0, Math.min(4, room));
+        while (bb.bits.length % 8 !== 0) bb.bits.push(0);
+        var cw = bb.toBytes(dataLen);
+        // pad alternately with 0xEC / 0x11
+        var used = Math.ceil(bb.bits.length / 8);
+        for (i = used; i < dataLen; i++) cw[i] = ((i - used) % 2 === 0) ? 0xEC : 0x11;
+        return cw.concat(rsEncode(cw, CAP_L[version][1]));
+    }
+
+    // ── matrix ──────────────────────────────────────────────────────────
+    function newMatrix(size) {
+        var m = [], r = [];
+        for (var i = 0; i < size; i++) {
+            m.push(new Int8Array(size).fill(-1));       // -1 = free
+            r.push(new Uint8Array(size));               // 1 = reserved (function pattern)
+        }
+        return { m: m, res: r, size: size };
+    }
+
+    function placeFinder(M, row, col) {
+        for (var r = -1; r <= 7; r++) {
+            for (var c = -1; c <= 7; c++) {
+                var rr = row + r, cc = col + c;
+                if (rr < 0 || cc < 0 || rr >= M.size || cc >= M.size) continue;
+                var on = (r >= 0 && r <= 6 && (c === 0 || c === 6)) ||
+                         (c >= 0 && c <= 6 && (r === 0 || r === 6)) ||
+                         (r >= 2 && r <= 4 && c >= 2 && c <= 4);
+                M.m[rr][cc] = on ? 1 : 0;
+                M.res[rr][cc] = 1;
+            }
+        }
+    }
+
+    function placeFunctionPatterns(M, version) {
+        var n = M.size;
+        placeFinder(M, 0, 0); placeFinder(M, 0, n - 7); placeFinder(M, n - 7, 0);
+        // timing patterns
+        for (var i = 8; i < n - 8; i++) {
+            var v = (i % 2 === 0) ? 1 : 0;
+            if (!M.res[6][i]) { M.m[6][i] = v; M.res[6][i] = 1; }
+            if (!M.res[i][6]) { M.m[i][6] = v; M.res[i][6] = 1; }
+        }
+        // alignment patterns, skipping any that collide with a finder
+        var ctr = ALIGN[version];
+        for (var a = 0; a < ctr.length; a++) {
+            for (var b = 0; b < ctr.length; b++) {
+                var row = ctr[a], col = ctr[b];
+                if (M.res[row][col]) continue;
+                for (var r = -2; r <= 2; r++) {
+                    for (var c = -2; c <= 2; c++) {
+                        var on = (Math.abs(r) === 2 || Math.abs(c) === 2 || (r === 0 && c === 0));
+                        M.m[row + r][col + c] = on ? 1 : 0;
+                        M.res[row + r][col + c] = 1;
+                    }
+                }
+            }
+        }
+        // dark module
+        M.m[n - 8][8] = 1; M.res[n - 8][8] = 1;
+        // reserve format information areas
+        for (i = 0; i <= 8; i++) {
+            if (!M.res[8][i]) { M.res[8][i] = 1; M.m[8][i] = 0; }
+            if (!M.res[i][8]) { M.res[i][8] = 1; M.m[i][8] = 0; }
+        }
+        for (i = 0; i < 8; i++) {
+            if (!M.res[8][n - 1 - i]) { M.res[8][n - 1 - i] = 1; M.m[8][n - 1 - i] = 0; }
+            if (!M.res[n - 1 - i][8]) { M.res[n - 1 - i][8] = 1; M.m[n - 1 - i][8] = 0; }
+        }
+    }
+
+    function placeData(M, codewords) {
+        var n = M.size, bitIdx = 0, total = codewords.length * 8;
+        var col = n - 1, upward = true;
+        while (col > 0) {
+            if (col === 6) col--;                     // skip vertical timing column
+            for (var i = 0; i < n; i++) {
+                var row = upward ? (n - 1 - i) : i;
+                for (var k = 0; k < 2; k++) {
+                    var c = col - k;
+                    if (M.res[row][c]) continue;
+                    var bit = 0;
+                    if (bitIdx < total) {
+                        bit = (codewords[bitIdx >> 3] >>> (7 - (bitIdx & 7))) & 1;
+                        bitIdx++;
+                    }
+                    M.m[row][c] = bit;
+                }
+            }
+            upward = !upward;
+            col -= 2;
+        }
+    }
+
+    function maskFn(id, r, c) {
+        switch (id) {
+            case 0: return (r + c) % 2 === 0;
+            case 1: return r % 2 === 0;
+            case 2: return c % 3 === 0;
+            case 3: return (r + c) % 3 === 0;
+            case 4: return (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0;
+            case 5: return ((r * c) % 2) + ((r * c) % 3) === 0;
+            case 6: return (((r * c) % 2) + ((r * c) % 3)) % 2 === 0;
+            case 7: return (((r + c) % 2) + ((r * c) % 3)) % 2 === 0;
+        }
+        return false;
+    }
+
+    // format info: 2 bits EC (L = 01) + 3 bits mask, BCH(15,5), XOR 0x5412
+    function formatBits(maskId) {
+        var data = (0b01 << 3) | maskId;
+        var rem = data << 10;
+        for (var i = 14; i >= 10; i--) if ((rem >>> i) & 1) rem ^= 0x537 << (i - 10);
+        return ((data << 10) | rem) ^ 0x5412;
+    }
+
+    function applyFormat(M, maskId) {
+        var n = M.size, f = formatBits(maskId);
+        // MSB FIRST: the module placed first carries bit 14, not bit 0. Derived
+        // empirically from a reference encoder rather than guessed -- reading it
+        // LSB-first produces a well-formed grid that no scanner can decode,
+        // because the mask recorded in the format no longer matches the mask
+        // actually applied to the data.
+        function bit(i) { return (f >>> (14 - i)) & 1; }
+        // copy 1 (around the top-left finder)
+        for (var i = 0; i <= 5; i++) M.m[8][i] = bit(i);
+        M.m[8][7] = bit(6); M.m[8][8] = bit(7); M.m[7][8] = bit(8);
+        for (i = 9; i <= 14; i++) M.m[14 - i][8] = bit(i);
+        // copy 2 — the split is 7 modules in the COLUMN and 8 in the ROW.
+        // Getting this backwards (8+7) puts bit 7 on the dark-module position
+        // and shifts every later bit; the code then scans as garbage. That was
+        // the defect the decode-back check caught: nothing decoded at all.
+        for (i = 0; i <= 6; i++) M.m[n - 1 - i][8] = bit(i);      // rows n-1..n-7
+        for (i = 7; i <= 14; i++) M.m[8][n - 15 + i] = bit(i);    // cols n-8..n-1
+        M.m[n - 8][8] = 1;                              // dark module stays set
+    }
+
+    function penalty(m, n) {
+        var p = 0, i, j, run, prev;
+        // rule 1: runs of 5+ same-colour modules in a row/column
+        for (i = 0; i < n; i++) {
+            run = 1; prev = m[i][0];
+            for (j = 1; j < n; j++) {
+                if (m[i][j] === prev) run++;
+                else { if (run >= 5) p += 3 + (run - 5); run = 1; prev = m[i][j]; }
+            }
+            if (run >= 5) p += 3 + (run - 5);
+            run = 1; prev = m[0][i];
+            for (j = 1; j < n; j++) {
+                if (m[j][i] === prev) run++;
+                else { if (run >= 5) p += 3 + (run - 5); run = 1; prev = m[j][i]; }
+            }
+            if (run >= 5) p += 3 + (run - 5);
+        }
+        // rule 2: 2x2 blocks of one colour
+        for (i = 0; i < n - 1; i++)
+            for (j = 0; j < n - 1; j++) {
+                var v = m[i][j];
+                if (v === m[i][j + 1] && v === m[i + 1][j] && v === m[i + 1][j + 1]) p += 3;
+            }
+        // rule 3: finder-like 1:1:3:1:1 patterns
+        var pat1 = [1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0];
+        var pat2 = [0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1];
+        function match(arr, pat) {
+            for (var k = 0; k < 11; k++) if (arr[k] !== pat[k]) return false;
+            return true;
+        }
+        for (i = 0; i < n; i++)
+            for (j = 0; j + 10 < n; j++) {
+                var rowSeg = [], colSeg = [];
+                for (var k = 0; k < 11; k++) { rowSeg.push(m[i][j + k]); colSeg.push(m[j + k][i]); }
+                if (match(rowSeg, pat1) || match(rowSeg, pat2)) p += 40;
+                if (match(colSeg, pat1) || match(colSeg, pat2)) p += 40;
+            }
+        // rule 4: deviation from 50% dark
+        var dark = 0;
+        for (i = 0; i < n; i++) for (j = 0; j < n; j++) dark += m[i][j];
+        var pct = dark * 100 / (n * n);
+        p += Math.floor(Math.abs(pct - 50) / 5) * 10;
+        return p;
+    }
+
+    /** Encode `text` into a boolean module grid. Returns {size, modules, version}
+     *  or null if the text does not fit versions 1-5 at EC level L. */
+    function encode(text, forceMask) {
+        var byteLen = 0;
+        for (var i = 0; i < text.length; i++) byteLen += text.charCodeAt(i) < 128 ? 1 : 3;
+        var version = pickVersion(byteLen);
+        if (!version) return null;
+
+        var cw = buildCodewords(text, version);
+        var size = 4 * version + 17;
+
+        var best = null, bestScore = Infinity;
+        var lo = (forceMask === undefined) ? 0 : forceMask;
+        var hi = (forceMask === undefined) ? 8 : forceMask + 1;
+        for (var mask = lo; mask < hi; mask++) {
+            var M = newMatrix(size);
+            placeFunctionPatterns(M, version);
+            placeData(M, cw);
+            // apply mask to data modules only
+            for (var r = 0; r < size; r++)
+                for (var c = 0; c < size; c++)
+                    if (!M.res[r][c] && maskFn(mask, r, c)) M.m[r][c] ^= 1;
+            applyFormat(M, mask);
+            var s = penalty(M.m, size);
+            if (s < bestScore) { bestScore = s; best = M; }
+        }
+        return { size: size, version: version, modules: best.m, penalty: bestScore, codewords: cw };
+    }
+
+    /** Draw into a 2D context. `quiet` is in modules (the standard is 4). */
+    function draw(ctx, text, x, y, moduleSize, quiet) {
+        var q = (quiet === undefined) ? 4 : quiet;
+        var qr = encode(text);
+        if (!qr) return null;
+        var total = (qr.size + 2 * q) * moduleSize;
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(x, y, total, total);
+        ctx.fillStyle = '#000';
+        for (var r = 0; r < qr.size; r++)
+            for (var c = 0; c < qr.size; c++)
+                if (qr.modules[r][c])
+                    ctx.fillRect(x + (c + q) * moduleSize, y + (r + q) * moduleSize,
+                                 moduleSize, moduleSize);
+        return { size: total, version: qr.version, modules: qr.size };
+    }
+
+    window.MCQR = { encode: encode, draw: draw, capacity: CAP_L };
+})();
+
+</script>
+<script>
+/* --- inlined from camera_module.js --- */
+/* camera_module.js — DEVICE-PROVEN camera activation for r1 creations.
+ *
+ * getUserMedia is the ONLY camera path on the r1 (no SDK bridge exists; the
+ * official doc says "standard mobile web technologies"). But a naive call
+ * fails on the device in ways that look exactly like "camera never starts".
+ * This module encodes the four rules recovered from the one known working
+ * open-source camera creation (JMRBDev/rabbit-r1-creations) — its commit
+ * history fixed precisely these:
+ *
+ *   1. facingMode must be {ideal:'environment'}, NEVER exact/bare — the r1
+ *      has ONE rotating camera whose reported facing may match nothing.
+ *   2. enumerateDevices() first; prefer deviceId:{exact} over facingMode.
+ *   3. The FIRST call often fails: defer ~100ms, retry 3 rounds with
+ *      500*n backoff, then show a prompt and RE-ARM ON ANY USER GESTURE.
+ *   4. Release all previous tracks before every new request (one camera
+ *      wedges), and call video.play() EXPLICITLY after srcObject — the
+ *      autoplay attributes alone can leave a live stream on a black screen.
+ *
+ * Also: HTTPS is mandatory (over http, navigator.mediaDevices is UNDEFINED),
+ * and there is no WebGL in this WebView — Canvas 2D only.
+ *
+ * Usage (inside your IIFE):
+ *   var cam = R1Camera({ onChange: function () { dirty = true; } });
+ *   cam.open();            // when entering your camera state
+ *   cam.retry();           // from ANY gesture handler while !cam.stream
+ *   cam.video              // <video> element once live — drawImage() it
+ *   cam.err / cam.starting / cam.tries   // for honest on-screen status
+ *   cam.close();           // when leaving the state
+ */
+function R1Camera(opts) {
+    'use strict';
+    opts = opts || {};
+    var cam = { video: null, stream: null, err: null, tries: [],
+                round: 0, starting: false };
+    function notify() { if (opts.onChange) opts.onChange(cam); }
+
+    function stopTracks() {
+        if (cam.stream) {
+            try { cam.stream.getTracks().forEach(function (t) { t.stop(); }); }
+            catch (e) {}
+            cam.stream = null;
+        }
+        cam.video = null;
+    }
+
+    function round() {
+        var md = navigator.mediaDevices;
+        cam.starting = true; cam.err = null; notify();
+        function fail(tag) {
+            cam.tries.push(tag);
+            cam.starting = false;
+            cam.round += 1;
+            if (cam.round < 3) setTimeout(round, 500 * cam.round);
+            else cam.err = 'tap or press PTT to start the camera';
+            notify();
+        }
+        function attempt(list, i) {
+            if (i >= list.length) { fail('all-refused'); return; }
+            stopTracks();
+            md.getUserMedia(list[i]).then(function (stream) {
+                cam.stream = stream;
+                var v = document.createElement('video');
+                v.setAttribute('playsinline', '');
+                v.setAttribute('autoplay', '');
+                v.muted = true;
+                v.srcObject = stream;
+                var pr = v.play();
+                if (pr && pr.catch) pr.catch(function () {});
+                cam.video = v; cam.starting = false; cam.err = null;
+                notify();
+            }).catch(function (e) {
+                cam.tries.push((e && e.name) ? e.name : 'err');
+                attempt(list, i + 1);
+            });
+        }
+        var base = [
+            { video: { facingMode: { ideal: 'environment' } }, audio: false },
+            { video: true, audio: false }
+        ];
+        Promise.resolve().then(function () { return md.enumerateDevices(); })
+            .then(function (devs) {
+                var cams = (devs || []).filter(function (d) {
+                    return d.kind === 'videoinput' && d.deviceId;
+                });
+                attempt(cams.map(function (d) {
+                    return { video: { deviceId: { exact: d.deviceId } }, audio: false };
+                }).concat(base), 0);
+            })
+            .catch(function () { attempt(base, 0); });
+    }
+
+    cam.open = function () {
+        cam.err = null; cam.tries = []; cam.round = 0; cam.starting = false;
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            cam.err = 'no camera API here (needs https)';
+            notify(); return;
+        }
+        setTimeout(round, 100);                 // defer: boot-time flake
+    };
+    cam.retry = function () {                   // call from ANY gesture
+        if (cam.stream || cam.starting) return;
+        cam.round = 0; cam.tries = [];
+        round();
+    };
+    cam.close = function () {
+        stopTracks();
+        cam.err = null; cam.starting = false;
+        notify();
+    };
+    return cam;
+}
+
+</script>
+<script>
+/* --- inlined from eve_deck_core.js --- */
+/* eve_deck_core.js — Deterministic state, serpentine navigation, hitbox layout,
+ * and snapshot model for EVE DECK (240x282 Rabbit R1 Standalone Cyberdeck).
+ *
+ * Pinned by selftest.html and verify_eve_deck_deploy.py (ADR-001 pattern:
+ * Touch aims, PTT commits; >=28px touch targets; serpentine wheel adjacency;
+ * ES5 IIFE, zero external dependencies).
+ */
+(function () {
+    'use strict';
+
+    var W = 240, H = 282, HEADER_H = 30, TAB_H = 28, FOOTER_H = 24;
+    var SCREENS = ['mic', 'deck', 'eye', 'sys'];
+    var SPK_MODES = ['r1', 'both', 'pc'];
+
+    var DECK_ITEMS = [
+        { id: 'approve',        short: 'Y+ENT',  sub: 'Approve',  cat: 'ok'   },
+        { id: 'enter',          short: 'SEND',   sub: 'Return',   cat: 'ok'   },
+        { id: 'stop',           short: 'STOP',   sub: 'Ctrl+C',   cat: 'stop' },
+        { id: 'slash_plan',     short: '/plan',  sub: 'Plan',     cat: 'cmd'  },
+        { id: 'slash_boost',    short: '/boost', sub: 'Boost',    cat: 'cmd'  },
+        { id: 'slash_goal',     short: '/goal',  sub: 'Goal',     cat: 'cmd'  },
+        { id: 'slash_teamwork', short: '/team',  sub: 'Swarm',    cat: 'cmd'  },
+        { id: 'slash_compact',  short: '/comp',  sub: 'Compact',  cat: 'cmd'  },
+        { id: 'paste',          short: 'PASTE',  sub: 'Ctrl+V',   cat: 'util' },
+        { id: 'open_ani',       short: ':8094',  sub: 'Ani UI',   cat: 'util' },
+        { id: 'open_radar',     short: ':8095',  sub: 'Radar',    cat: 'util' },
+        { id: 'focus_dev',      short: 'TERM',   sub: 'Dev Win',  cat: 'util' }
+    ];
+
+    var MIC_ITEMS = [
+        { id: 'talk_ani',     label: 'TALK ANI',   x: 6,   y: 158, w: 111, h: 56 },
+        { id: 'dictate_pc',   label: 'DICTATE PC', x: 123, y: 158, w: 111, h: 56 },
+        { id: ' approve_q',   label: 'Y+ENT',      x: 6,   y: 220, w: 54,  h: 32 },
+        { id: 'cycle_spk',    label: 'SPK',        x: 64,  y: 220, w: 56,  h: 32 },
+        { id: 'toggle_agent', label: 'AGENT',      x: 124, y: 220, w: 54,  h: 32 },
+        { id: 'stop_q',       label: 'STOP',       x: 182, y: 220, w: 52,  h: 32 }
+    ];
+    MIC_ITEMS[2].id = 'approve_q';
+    // Serpentine order for MIC_ITEMS: row 0 left->right (0,1), row 1 right->left (5,4,3,2)
+    // so wheel step from [1] (top-right) lands on [5] (bottom-right) — physically adjacent!
+    var MIC_PATH = [0, 1, 5, 4, 3, 2];
+
+    var SYS_ITEMS = [
+        { id: 'ping',       label: 'PING DGX',   x: 6,   y: 184, w: 111, h: 34 },
+        { id: 'sync',       label: 'SYNC TUN',   x: 123, y: 184, w: 111, h: 34 },
+        { id: 'exit_app',   label: 'EXIT DECK',  x: 123, y: 222, w: 111, h: 32 },
+        { id: 'share_card', label: 'QR SHARE',   x: 6,   y: 222, w: 111, h: 32 }
+    ];
+    // SYS_ITEMS is already ordered clockwise/serpentine: (0:TL -> 1:TR -> 2:BR -> 3:BL)!
+
+    function deckCellRC(serpIdx) {
+        var r = (serpIdx / 3) | 0;
+        var rem = serpIdx % 3;
+        var c = (r % 2 === 0) ? rem : (2 - rem);
+        return [r, c];
+    }
+
+    function deckSerpFromRC(r, c) {
+        return r * 3 + ((r % 2 === 0) ? c : (2 - c));
+    }
+
+    function deckRect(serpIdx) {
+        var rc = deckCellRC(serpIdx);
+        var gx = 6 + rc[1] * 77;
+        var gy = HEADER_H + TAB_H + 6 + rc[0] * 48;
+        return { x: gx, y: gy, w: 74, h: 44, r: rc[0], c: rc[1], item: DECK_ITEMS[serpIdx] };
+    }
+
+    function tabRect(tabIdx) {
+        var tw = 57;
+        return { x: 4 + tabIdx * 58, y: HEADER_H + 2, w: tw, h: 24, screen: SCREENS[tabIdx] };
+    }
+
+    function createModel() {
+        return {
+            v: 2,
+            screen: 'mic',
+            micCursor: 0,       // index into MIC_PATH (0..5)
+            deckCursor: 0,      // serpentine index 0..11
+            sysCursor: 0,       // serpentine index 0..3
+            spk: 'r1',
+            agent: 'ani',
+            key: '',
+            bridge: '',
+            explicitBridge: false,
+            lastYou: '',
+            lastReply: 'Tap button to aim · Side PTT to speak or run.',
+            portsUp: '?/6',
+            memGib: 0,
+            mycinRules: 12260,
+            online: false
+        };
+    }
+
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    function scrollModel(m, dir) {
+        if (m.screen === 'mic') {
+            m.micCursor = clamp(m.micCursor + dir, 0, MIC_PATH.length - 1);
+        } else if (m.screen === 'deck') {
+            m.deckCursor = clamp(m.deckCursor + dir, 0, DECK_ITEMS.length - 1);
+        } else if (m.screen === 'sys') {
+            m.sysCursor = clamp(m.sysCursor + dir, 0, SYS_ITEMS.length - 1);
+        } else if (m.screen === 'eye') {
+            var si = clamp(SCREENS.indexOf(m.screen) + dir, 0, SCREENS.length - 1);
+            m.screen = SCREENS[si];
+        }
+        return m;
+    }
+
+    function hitTest(m, px, py) {
+        if (py < HEADER_H) {
+            return { kind: 'header_menu' };
+        }
+        if (py >= HEADER_H && py < HEADER_H + TAB_H) {
+            for (var t = 0; t < 4; t++) {
+                var tr = tabRect(t);
+                if (px >= tr.x && px <= tr.x + tr.w) {
+                    return { kind: 'tab', screen: tr.screen, tabIndex: t };
+                }
+            }
+        }
+        if (m.screen === 'mic') {
+            for (var p = 0; p < MIC_PATH.length; p++) {
+                var itemIdx = MIC_PATH[p];
+                var b = MIC_ITEMS[itemIdx];
+                if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) {
+                    return { kind: 'aim_mic', cursor: p, id: b.id };
+                }
+            }
+        } else if (m.screen === 'deck') {
+            for (var s = 0; s < DECK_ITEMS.length; s++) {
+                var dr = deckRect(s);
+                if (px >= dr.x && px <= dr.x + dr.w && py >= dr.y && py <= dr.y + dr.h) {
+                    return { kind: 'aim_deck', cursor: s, id: dr.item.id };
+                }
+            }
+        } else if (m.screen === 'eye') {
+            if (py >= HEADER_H + TAB_H && py < H - FOOTER_H) {
+                return { kind: 'camera_shutter' };
+            }
+        } else if (m.screen === 'sys') {
+            for (var k = 0; k < SYS_ITEMS.length; k++) {
+                var sr = SYS_ITEMS[k];
+                if (px >= sr.x && px <= sr.x + sr.w && py >= sr.y && py <= sr.y + sr.h) {
+                    return { kind: 'aim_sys', cursor: k, id: sr.id };
+                }
+            }
+        }
+        return { kind: 'none' };
+    }
+
+    // Touch = AIM ONLY (never mutates/executes a remote action, except camera_shutter per R1_TRAPS)
+    function applyPoint(m, px, py) {
+        var hit = hitTest(m, px, py);
+        if (hit.kind === 'tab') { m.screen = hit.screen; }
+        else if (hit.kind === 'aim_mic') { m.micCursor = hit.cursor; }
+        else if (hit.kind === 'aim_deck') { m.deckCursor = hit.cursor; }
+        else if (hit.kind === 'aim_sys') { m.sysCursor = hit.cursor; }
+        return hit;
+    }
+
+    function snapshotModel(m) {
+        return {
+            v: 2,
+            screen: m.screen,
+            micCursor: m.micCursor,
+            deckCursor: m.deckCursor,
+            sysCursor: m.sysCursor,
+            spk: m.spk,
+            agent: m.agent,
+            key: m.key,
+            bridge: m.bridge,
+            explicitBridge: !!m.explicitBridge,
+            lastYou: m.lastYou,
+            lastReply: m.lastReply,
+            at: Date.now()
+        };
+    }
+
+    function restoreModel(m, snap) {
+        if (!snap || typeof snap !== 'object') return m;
+        if (SCREENS.indexOf(snap.screen) >= 0) m.screen = snap.screen;
+        if (typeof snap.micCursor === 'number') m.micCursor = clamp(snap.micCursor | 0, 0, MIC_PATH.length - 1);
+        if (typeof snap.deckCursor === 'number') m.deckCursor = clamp(snap.deckCursor | 0, 0, DECK_ITEMS.length - 1);
+        if (typeof snap.sysCursor === 'number') m.sysCursor = clamp(snap.sysCursor | 0, 0, SYS_ITEMS.length - 1);
+        if (SPK_MODES.indexOf(snap.spk) >= 0) m.spk = snap.spk;
+        if (snap.agent === 'ani' || snap.agent === 'jules') m.agent = snap.agent;
+        if (typeof snap.key === 'string' && snap.key) m.key = snap.key;
+        if (typeof snap.bridge === 'string') m.bridge = snap.bridge;
+        if (snap.explicitBridge) m.explicitBridge = true;
+        if (typeof snap.lastYou === 'string') m.lastYou = snap.lastYou;
+        if (typeof snap.lastReply === 'string' && snap.lastReply) m.lastReply = snap.lastReply;
+        return m;
+    }
+
+    function mergeHash(m, hashStr) {
+        var raw = String(hashStr || '').replace(/^#/, '');
+        if (!raw) return false;
+        var changed = false;
+        var parts = raw.split('&');
+        for (var i = 0; i < parts.length; i++) {
+            var kv = parts[i].split('=');
+            var k = decodeURIComponent(kv[0] || '');
+            var v = decodeURIComponent(kv.slice(1).join('=') || '');
+            if (k === 'key' && v) { m.key = v; changed = true; }
+            if (k === 'bridge') { m.bridge = v.replace(/\/+$/, ''); m.explicitBridge = true; changed = true; }
+        }
+        return changed;
+    }
+
+    window.EVEDeckCore = {
+        W: W, H: H, HEADER_H: HEADER_H, TAB_H: TAB_H, FOOTER_H: FOOTER_H,
+        SCREENS: SCREENS, SPK_MODES: SPK_MODES,
+        DECK_ITEMS: DECK_ITEMS, MIC_ITEMS: MIC_ITEMS, MIC_PATH: MIC_PATH, SYS_ITEMS: SYS_ITEMS,
+        deckCellRC: deckCellRC, deckSerpFromRC: deckSerpFromRC, deckRect: deckRect, tabRect: tabRect,
+        createModel: createModel, scrollModel: scrollModel,
+        hitTest: hitTest, applyPoint: applyPoint,
+        snapshotModel: snapshotModel, restoreModel: restoreModel, mergeHash: mergeHash
+    };
+})();
+
+</script>
+<script>
+(function () {
+    'use strict';
+
+    var Core = window.EVEDeckCore;
+    var W = Core.W, H = Core.H, HEADER_H = Core.HEADER_H, TAB_H = Core.TAB_H, FOOTER_H = Core.FOOTER_H;
+
+    var canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    document.body.appendChild(canvas);
+    var ctx = canvas.getContext('2d');
+
+    var COL = {
+        bg: '#090c12', panel: '#121824', card: '#141c2b', line: '#263348',
+        text: '#e6edf3', dim: '#8b9bb4', orange: '#FE5000', cyan: '#00E5FF',
+        pink: '#EC4899', green: '#22C55E', red: '#EF4444'
+    };
+
+    var m = Core.createModel();
+    var state = 'app';              // 'app' | 'action' | 'share'
+    var dirty = true;
+    var toast = '', toastUntil = 0;
+    var statusText = 'booting...';
+
+    function say(msg) { toast = String(msg || ''); toastUntil = Date.now() + 1600; dirty = true; }
+    function setStatus(msg, ok) {
+        statusText = String(msg || '');
+        if (typeof ok === 'boolean') m.online = ok;
+        dirty = true;
+    }
+
+    // ---- storage: creationStorage.plain (Base64) + localStorage fallback ----
+    var AUTOSAVE_KEY = 'eve_deck_autosave_v2';
+    var storageMode = window.creationStorage ? 'device' : 'browser';
+    var autosaveTimer = null, autosaveDirty = false;
+
+    function storageSet(key, obj) {
+        try {
+            var raw = btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+            if (window.creationStorage && creationStorage.plain) creationStorage.plain.setItem(key, raw);
+            else localStorage.setItem(key, raw);
+            return true;
+        } catch (e) { return false; }
+    }
+    function storageGet(key, cb) {
+        function decode(raw) {
+            if (!raw) return null;
+            try { return JSON.parse(decodeURIComponent(escape(atob(raw)))); }
+            catch (e) { return null; }
+        }
+        try {
+            if (window.creationStorage && creationStorage.plain) {
+                Promise.resolve(creationStorage.plain.getItem(key))
+                    .then(function (raw) { cb(decode(raw) || decode(localStorage.getItem(key))); })
+                    .catch(function () { cb(decode(localStorage.getItem(key))); });
+            } else {
+                cb(decode(localStorage.getItem(key)));
+            }
+        } catch (e) { cb(null); }
+    }
+    function snapshot() { return Core.snapshotModel(m); }
+    function autosaveNow() {
+        var ok = storageSet(AUTOSAVE_KEY, snapshot());
+        autosaveDirty = false;
+        return ok;
+    }
+    function scheduleAutosave() {
+        autosaveDirty = true;
+        if (autosaveTimer) clearTimeout(autosaveTimer);
+        autosaveTimer = setTimeout(autosaveNow, 400);
+    }
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden && autosaveDirty) autosaveNow();
     });
-  }
+    window.addEventListener('pagehide', function () { if (autosaveDirty) autosaveNow(); });
 
-  // Hardware Scroll Wheel + Side PTT Button (mcskin-r1 45ms detent debounce)
-  var lastScroll = 0;
-  function onScroll(dir){
-    var now = Date.now(); if (now - lastScroll < 45) return; lastScroll = now;
-    if (tab === 'mic') { micSel = (micSel + dir + 5) % 5; highlightMic(); }
-    else if (tab === 'deck') { deckSel = (deckSel + dir + DECK_BTNS.length) % DECK_BTNS.length; highlightDeck(); }
-    else { var ti = (TABS.indexOf(tab) + dir + TABS.length) % TABS.length; setTab(TABS[ti]); }
-  }
-  function onSideClick(){
-    if (recState.active) { stopVoice(); return; }
-    if (tab === 'mic') {
-      if (micSel === 0) toggleVoice('talk_ani');
-      else if (micSel === 1) toggleVoice('dictate_pc');
-      else if (micSel === 2) $('btn-spk').click();
-      else if (micSel === 3) runDeckAction('approve');
-      else if (micSel === 4) runDeckAction('stop');
-    } else if (tab === 'deck') {
-      runDeckAction(DECK_BTNS[deckSel].id);
-    } else if (tab === 'eye') {
-      snapVision();
-    } else {
-      refreshStatus();
+    // ---- network bridge + cache:'no-store' endpoint discovery (EVE-ISS-0165) ----
+    function apiBase() { return String(m.bridge || '').replace(/\/+$/, ''); }
+    function syncEndpoint() {
+        return fetch('./endpoint.json?bust=' + Date.now(), { cache: 'no-store' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) {
+                if (d && typeof d.bridge_url === 'string' && !m.explicitBridge) {
+                    m.bridge = d.bridge_url.replace(/\/+$/, '');
+                    scheduleAutosave();
+                }
+                return d;
+            })
+            .catch(function () { return null; });
     }
-  }
-  function onLongPress(){
-    if (recState.active) { stopVoice(); return; }
-    var ti = (TABS.indexOf(tab) + 1) % TABS.length;
-    setTab(TABS[ti]);
-  }
-
-  window.addEventListener('scrollUp', function(){ onScroll(-1); });
-  window.addEventListener('scrollDown', function(){ onScroll(1); });
-  window.addEventListener('sideClick', onSideClick);
-  window.addEventListener('longPressStart', onLongPress);
-
-  // Touch bindings
-  var tabEls = document.querySelectorAll('.tab');
-  for (var i = 0; i < tabEls.length; i++) {
-    (function(el){ el.addEventListener('click', function(){ setTab(el.getAttribute('data-tab')); }); })(tabEls[i]);
-  }
-  $('ag-btn').addEventListener('click', function(){ runDeckAction('toggle_agent'); });
-  $('btn-ani').addEventListener('click', function(){ micSel = 0; highlightMic(); toggleVoice('talk_ani'); });
-  $('btn-pc').addEventListener('click', function(){ micSel = 1; highlightMic(); toggleVoice('dictate_pc'); });
-  $('btn-spk').addEventListener('click', function(){
-    micSel = 2; highlightMic();
-    cfg.spk = SPK_MODES[(SPK_MODES.indexOf(cfg.spk) + 1) % SPK_MODES.length];
-    updateSpkBtn(); storageSave();
-  });
-  $('btn-quick-y').addEventListener('click', function(){ micSel = 3; highlightMic(); runDeckAction('approve'); });
-  $('btn-quick-stop').addEventListener('click', function(){ micSel = 4; highlightMic(); runDeckAction('stop'); });
-  $('btn-snap').addEventListener('click', snapVision);
-  $('btn-cam-retry').addEventListener('click', function(){ stopCamera(); openCamera(); });
-  $('btn-sync').addEventListener('click', function(){ foot('syncing tunnel...', true); syncEndpoint().then(refreshStatus); });
-  $('btn-ping').addEventListener('click', refreshStatus);
-  $('btn-exit').addEventListener('click', function(){
-    stopVoice(); stopCamera();
-    try { if (typeof closeWebView !== 'undefined') closeWebView.postMessage(''); } catch(e){}
-  });
-
-  // Boot: read saved creationStorage -> merge #key & #bridge -> sync endpoint.json -> connect!
-  renderDeck(); highlightMic(); drawWaveLoop(); drawCamLoop();
-  storageLoad(function(saved){
-    if (saved) {
-      if (saved.key) cfg.key = saved.key;
-      if (saved.bridge) cfg.bridge = saved.bridge;
-      if (saved.spk) cfg.spk = saved.spk;
+    function apiFetch(path, opts, retried) {
+        opts = opts || {};
+        opts.cache = 'no-store';
+        opts.headers = opts.headers || {};
+        if (m.key) opts.headers['Authorization'] = 'Bearer ' + m.key;
+        return fetch(apiBase() + path, opts).then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        }).catch(function (err) {
+            if (!retried && !m.explicitBridge) {
+                return syncEndpoint().then(function () { return apiFetch(path, opts, true); });
+            }
+            throw err;
+        });
     }
-    var h = (location.hash || '').replace(/^#/, '');
-    if (h) {
-      var sp = new URLSearchParams(h);
-      if (sp.get('key')) cfg.key = sp.get('key');
-      if (sp.has('bridge')) { cfg.bridge = sp.get('bridge') || ''; cfg.explicitBridge = true; }
-      storageSave();
+
+    function journal(message) {
+        if (!window.PluginMessageHandler) return;
+        try {
+            PluginMessageHandler.postMessage(JSON.stringify({
+                message: message, useLLM: false, wantsR1Response: false, wantsJournalEntry: true
+            }));
+        } catch (e) {}
     }
-    updateSpkBtn();
-    syncEndpoint().then(refreshStatus);
-  });
+
+    // ---- QR Share off-device (litterbox direct PNG -> tmpfiles fallback) ----
+    var HOSTS = [
+        { name: 'litterbox', direct: true,
+          url: 'https://litterbox.catbox.moe/resources/internals/api.php',
+          form: function (blob) {
+              var f = new FormData();
+              f.append('reqtype', 'fileupload'); f.append('time', '72h');
+              f.append('fileToUpload', blob, 'eve_r1_cyberdeck_card_export.png');
+              return f;
+          },
+          parse: function (t) { return /^https:\/\/\S+$/.test(t.trim()) ? t.trim() : null; } },
+        { name: 'tmpfiles', direct: false,
+          url: 'https://tmpfiles.org/api/v1/upload',
+          form: function (blob) {
+              var f = new FormData();
+              f.append('file', blob, 'eve_r1_cyberdeck_card_export.png');
+              return f;
+          },
+          parse: function (t) {
+              try { return JSON.parse(t).data.url || null; } catch (e) { return null; }
+          } }
+    ];
+    var shareState = { busy: false, url: null, host: null, err: null };
+    function shareCurrentCanvas() {
+        shareState.busy = true; shareState.err = null; shareState.url = null;
+        state = 'share'; say('uploading card…'); dirty = true;
+        var sendBlob = function (blob) {
+            if (!blob) { shareState.busy = false; shareState.err = 'render failed'; dirty = true; return; }
+            var i = 0;
+            (function nextHost() {
+                if (i >= HOSTS.length) {
+                    shareState.busy = false; shareState.err = 'all hosts failed'; dirty = true; return;
+                }
+                var h = HOSTS[i++];
+                fetch(h.url, { method: 'POST', body: h.form(blob) })
+                    .then(function (r) { return r.text(); })
+                    .then(function (t) {
+                        var u = h.parse(t);
+                        if (!u) throw new Error('bad url');
+                        shareState.url = u; shareState.host = h.name; shareState.busy = false;
+                        dirty = true; journal('EVE DECK card: ' + u);
+                    })
+                    .catch(function () { nextHost(); });
+            })();
+        };
+        if (canvas.toBlob) canvas.toBlob(sendBlob, 'image/png');
+        else {
+            var b64 = canvas.toDataURL('image/png').split(',')[1], bin = atob(b64), arr = new Uint8Array(bin.length);
+            for (var k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
+            sendBlob(new Blob([arr], { type: 'image/png' }));
+        }
+    }
+
+    // ---- Voice PTT + R1 Speaker Playback + Camera (R1Camera) ----------------
+    var recState = { active: false, mode: 'talk_ani', mr: null, chunks: [], stream: null, actx: null, analyser: null };
+    var curAudio = null;
+    var camBusy = false;
+    var camObj = window.R1Camera ? window.R1Camera({ onChange: function () { dirty = true; } }) :
+                 { video: null, stream: null, err: 'camera module missing', tries: [], open: function () {}, retry: function () {}, close: function () {} };
+
+    function playBase64Audio(b64, mime) {
+        if (!b64) return;
+        try {
+            if (curAudio) { curAudio.pause(); curAudio = null; }
+            curAudio = new Audio('data:' + (mime || 'audio/wav') + ';base64,' + b64);
+            var p = curAudio.play();
+            if (p && p.catch) p.catch(function () {});
+        } catch (e) {}
+    }
+
+    function pickAudioMime() {
+        if (typeof MediaRecorder === 'undefined') return '';
+        var types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+        for (var i = 0; i < types.length; i++) {
+            if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(types[i])) return types[i];
+        }
+        return '';
+    }
+
+    function startVoice(mode) {
+        if (recState.active) { stopVoice(false); return; }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            m.lastReply = 'Mic requires HTTPS Creation mode (scan install QR).';
+            setStatus('mic needs https', false); say('HTTPS required for mic'); return;
+        }
+        recState.mode = mode;
+        setStatus('opening R1 mic...', true);
+        navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then(function (stream) {
+            recState.stream = stream; recState.chunks = [];
+            var mime = pickAudioMime();
+            var mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+            recState.mr = mr;
+            try {
+                var AC = window.AudioContext || window.webkitAudioContext;
+                if (AC) {
+                    recState.actx = new AC();
+                    var src = recState.actx.createMediaStreamSource(stream);
+                    recState.analyser = recState.actx.createAnalyser();
+                    recState.analyser.fftSize = 64;
+                    src.connect(recState.analyser);
+                }
+            } catch (e) {}
+            mr.ondataavailable = function (ev) { if (ev.data && ev.data.size > 0) recState.chunks.push(ev.data); };
+            mr.onstop = function () {
+                if (recState.cancelled) return;
+                uploadVoiceClip(mr.mimeType || mime || 'audio/webm');
+            };
+            recState.cancelled = false;
+            mr.start();
+            recState.active = true;
+            setStatus('REC · press PTT to send', true);
+            dirty = true;
+        }).catch(function (e) {
+            setStatus('mic err: ' + (e.name || 'denied'), false);
+            say('mic refused');
+        });
+    }
+
+    function stopVoice(cancel) {
+        if (!recState.active) return;
+        recState.active = false;
+        recState.cancelled = !!cancel;
+        try { if (recState.mr && recState.mr.state !== 'inactive') recState.mr.stop(); } catch (e) {}
+        try { if (recState.stream) recState.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+        try { if (recState.actx) recState.actx.close(); } catch (e) {}
+        recState.stream = null; recState.actx = null; recState.analyser = null;
+        if (cancel) { setStatus('recording cancelled', true); say('cancelled'); }
+        dirty = true;
+    }
+
+    function uploadVoiceClip(mime) {
+        if (!recState.chunks.length) { setStatus('empty audio', false); return; }
+        var ext = mime.indexOf('mp4') >= 0 ? 'r1.mp4' : 'r1.webm';
+        var fd = new FormData();
+        fd.append('audio', new Blob(recState.chunks, { type: mime }), ext);
+        fd.append('mode', recState.mode);
+        fd.append('speaker', m.spk);
+        setStatus(recState.mode === 'dictate_pc' ? 'typing at PC cursor...' : 'consulting ' + m.agent.toUpperCase() + '...', true);
+        apiFetch('/api/r1/voice', { method: 'POST', body: fd }).then(function (res) {
+            if (!res.ok) { m.lastReply = res.error || 'Voice error'; setStatus('voice err', false); return; }
+            if (res.agent) m.agent = res.agent;
+            m.lastYou = res.transcript || '';
+            m.lastReply = res.reply || '';
+            scheduleAutosave();
+            if (res.audio_base64) playBase64Audio(res.audio_base64, res.audio_mime);
+            setStatus(recState.mode === 'dictate_pc' ? 'typed at PC cursor!' : m.agent.toUpperCase() + ' replied', true);
+        }).catch(function (e) {
+            m.lastReply = 'Bridge error: ' + e.message;
+            setStatus('bridge offline', false);
+        });
+    }
+    function snapVision() {
+        if (camBusy) return;
+        var v = camObj.video;
+        if (!v || !v.videoWidth) { camObj.retry(); say('waking R1 camera…'); return; }
+        camBusy = true;
+        setStatus('analyzing via muse-glimmer...', true);
+        var off = document.createElement('canvas');
+        off.width = 240; off.height = 180;
+        off.getContext('2d').drawImage(v, 0, 0, 240, 180);
+        var sendImg = function (blob) {
+            var fd = new FormData();
+            fd.append('image', blob, 'r1_eye_capture.jpg');
+            fd.append('speaker', m.spk);
+            apiFetch('/api/r1/vision', { method: 'POST', body: fd }).then(function (res) {
+                camBusy = false;
+                m.lastReply = res.ok ? res.reply : (res.error || 'Vision unavailable');
+                scheduleAutosave();
+                if (res.audio_base64) playBase64Audio(res.audio_base64, 'audio/wav');
+                setStatus(res.ok ? 'vision ready' : 'vision err', !!res.ok);
+            }).catch(function (e) {
+                camBusy = false;
+                setStatus('vision offline', false);
+                say('err: ' + e.message.slice(0, 22));
+            });
+        };
+        if (off.toBlob) off.toBlob(sendImg, 'image/jpeg', 0.85);
+        else {
+            var b64 = off.toDataURL('image/jpeg', 0.85).split(',')[1], bin = atob(b64), arr = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+            sendImg(new Blob([arr], { type: 'image/jpeg' }));
+        }
+    }
+
+    function sendDeckAction(actId) {
+        setStatus('sending ' + actId + '...', true);
+        apiFetch('/api/r1/action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: actId })
+        }).then(function (res) {
+            if (res.active_agent) { m.agent = res.active_agent; scheduleAutosave(); }
+            say(res.label || actId);
+            setStatus(res.label || 'done', true);
+        }).catch(function (e) {
+            setStatus('offline: ' + e.message, false);
+            say('bridge offline');
+        });
+    }
+
+    function refreshStatus() {
+        apiFetch('/api/r1/status').then(function (st) {
+            if (st.active_agent) m.agent = st.active_agent;
+            m.portsUp = st.ports_up || '?/6';
+            m.memGib = st.mem_avail_gib || 0;
+            m.mycinRules = st.mycin_rules || 12260;
+            setStatus('DGX online · ' + m.portsUp + ' ports', true);
+        }).catch(function (e) {
+            setStatus('offline (' + e.message + ')', false);
+        });
+    }
+
+    function switchScreen(scr) {
+        if (m.screen === scr && state === 'app') return;
+        if (m.screen === 'eye' && scr !== 'eye') camObj.close();
+        m.screen = scr;
+        state = 'app';
+        if (scr === 'eye') camObj.open();
+        if (scr === 'sys') refreshStatus();
+        scheduleAutosave();
+        dirty = true;
+    }
+
+    // ---- Universal Action Menu (Long-Press or Tap Header) -------------------
+    var actionList = null, actionIndex = 0;
+    var ACTIONS = [
+        { label: 'back to cyberdeck', run: function () { state = 'app'; } },
+        { label: 'screen: MIC (voice & Ani)', run: function () { switchScreen('mic'); } },
+        { label: 'screen: DECK (12-key pad)', run: function () { switchScreen('deck'); } },
+        { label: 'screen: EYE (360 AI cam)', run: function () { switchScreen('eye'); } },
+        { label: 'screen: SYS (DGX status)', run: function () { switchScreen('sys'); } },
+        { label: 'agent: switch ANI <-> JULES', run: function () { state = 'app'; sendDeckAction('toggle_agent'); } },
+        { label: 'speaker: cycle R1 / BOTH / PC', run: function () {
+            m.spk = Core.SPK_MODES[(Core.SPK_MODES.indexOf(m.spk) + 1) % Core.SPK_MODES.length];
+            scheduleAutosave(); state = 'app'; say('speaker: ' + m.spk.toUpperCase()); } },
+        { label: 'sync HTTPS tunnel (endpoint.json)', run: function () {
+            state = 'app'; say('syncing tunnel…'); syncEndpoint().then(refreshStatus); } },
+        { label: 'GET QR LINK for status card', run: function () { shareCurrentCanvas(); } },
+        { label: 'exit creation', run: function () {
+            stopVoice(true); camObj.close();
+            if (window.closeWebView) closeWebView.postMessage(''); else say('exit: device only'); } }
+    ];
+    function openMenu(list) { actionList = list || ACTIONS; actionIndex = 0; state = 'action'; dirty = true; }
+
+    // ---- Canvas 2D Drawing Primitives (240x282) -----------------------------
+    function roundRect(x, y, w, h, r, fill, stroke, lw) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+        if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+        if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1; ctx.stroke(); }
+    }
+
+    function wrapText(text, x, y, maxW, lineH, maxLines, color, font) {
+        ctx.fillStyle = color || COL.text;
+        ctx.font = font || '10px -apple-system,sans-serif';
+        var words = String(text || '').split(/\s+/), line = '', lines = 0;
+        for (var i = 0; i < words.length; i++) {
+            var test = line ? (line + ' ' + words[i]) : words[i];
+            if (ctx.measureText(test).width > maxW && line) {
+                ctx.fillText(line, x, y + lines * lineH);
+                lines++;
+                if (lines >= maxLines) return lines;
+                line = words[i];
+            } else {
+                line = test;
+            }
+        }
+        if (line && lines < maxLines) { ctx.fillText(line, x, y + lines * lineH); lines++; }
+        return lines;
+    }
+
+    function drawHeader(title, hint) {
+        ctx.fillStyle = COL.panel; ctx.fillRect(0, 0, W, HEADER_H);
+        ctx.strokeStyle = COL.line; ctx.beginPath(); ctx.moveTo(0, HEADER_H - 0.5); ctx.lineTo(W, HEADER_H - 0.5); ctx.stroke();
+        ctx.fillStyle = COL.orange; ctx.font = 'bold 11px -apple-system,sans-serif';
+        ctx.fillText(title + (storageMode === 'browser' ? ' · DEV' : ''), 7, 13);
+        ctx.fillStyle = COL.dim; ctx.font = '8px -apple-system,sans-serif';
+        ctx.fillText(hint, 7, 25);
+        // Active companion badge in top-right
+        var isJules = m.agent === 'jules';
+        roundRect(184, 4, 50, 20, 5, isJules ? '#0d2630' : '#2d1226', isJules ? COL.cyan : COL.pink, 1);
+        ctx.fillStyle = isJules ? COL.cyan : '#ff80bf';
+        ctx.font = 'bold 9px -apple-system,sans-serif';
+        ctx.fillText(m.agent.toUpperCase(), isJules ? 194 : 200, 17);
+    }
+
+    function drawTabs() {
+        ctx.fillStyle = '#0d121c'; ctx.fillRect(0, HEADER_H, W, TAB_H);
+        for (var i = 0; i < 4; i++) {
+            var tr = Core.tabRect(i);
+            var active = m.screen === tr.screen;
+            roundRect(tr.x, tr.y, tr.w, tr.h, 5, active ? COL.orange : '#161e2e', active ? '#ff8547' : COL.line, 1);
+            ctx.fillStyle = active ? '#fff' : COL.dim;
+            ctx.font = 'bold 10px -apple-system,sans-serif';
+            var lbl = tr.screen.toUpperCase();
+            ctx.fillText(lbl, tr.x + ((tr.w - ctx.measureText(lbl).width) >> 1), tr.y + 16);
+        }
+    }
+
+    function drawFooter() {
+        ctx.fillStyle = COL.panel; ctx.fillRect(0, H - FOOTER_H, W, FOOTER_H);
+        ctx.fillStyle = m.online ? COL.green : COL.red;
+        ctx.beginPath(); ctx.arc(10, H - (FOOTER_H >> 1), 3.2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = COL.dim; ctx.font = '9px -apple-system,sans-serif';
+        ctx.fillText(statusText.slice(0, 36), 18, H - 8);
+    }
+    function drawMicScreen() {
+        drawHeader('EVE DECK', 'wheel/touch = aim · PTT = run · hold = menu');
+        drawTabs();
+        // Waveform / Recording Strip (y=62..88)
+        roundRect(6, 62, 228, 26, 5, '#05080d', recState.active ? COL.orange : COL.line, 1);
+        if (recState.active && recState.analyser) {
+            var buf = new Uint8Array(recState.analyser.fftSize);
+            recState.analyser.getByteTimeDomainData(buf);
+            ctx.strokeStyle = recState.mode === 'dictate_pc' ? COL.cyan : COL.orange;
+            ctx.lineWidth = 1.5; ctx.beginPath();
+            for (var i = 0; i < buf.length; i++) {
+                var vx = 8 + (i * 224) / buf.length, vy = 62 + (buf[i] / 255) * 26;
+                if (i === 0) ctx.moveTo(vx, vy); else ctx.lineTo(vx, vy);
+            }
+            ctx.stroke();
+            ctx.fillStyle = COL.red; ctx.font = 'bold 9px -apple-system,sans-serif';
+            ctx.fillText('● REC (PTT = SEND)', 128, 78);
+        } else {
+            ctx.strokeStyle = '#1d2738'; ctx.beginPath(); ctx.moveTo(10, 75); ctx.lineTo(230, 75); ctx.stroke();
+            ctx.fillStyle = COL.dim; ctx.font = '8.5px -apple-system,sans-serif';
+            ctx.fillText('SPK: ' + m.spk.toUpperCase() + ' · READY', 12, 78);
+        }
+
+        // Conversation Box (y=92..153)
+        roundRect(6, 92, 228, 61, 5, '#0c111b', COL.line, 1);
+        var yCur = 104;
+        if (m.lastYou) {
+            var used = wrapText('YOU: ' + m.lastYou, 11, yCur, 216, 11, 2, COL.cyan, 'bold 9px -apple-system,sans-serif');
+            yCur += used * 11 + 2;
+        }
+        wrapText(m.agent.toUpperCase() + ': ' + m.lastReply, 11, yCur, 216, 11, m.lastYou ? 3 : 4, COL.text, '9.5px -apple-system,sans-serif');
+
+        // MIC Buttons (Touch aims -> orange outline; PTT commits!)
+        var selItemIdx = Core.MIC_PATH[m.micCursor];
+        for (var k = 0; k < Core.MIC_ITEMS.length; k++) {
+            var b = Core.MIC_ITEMS[k];
+            var sel = (k === selItemIdx);
+            var isRec = recState.active && ((k === 0 && recState.mode === 'talk_ani') || (k === 1 && recState.mode === 'dictate_pc'));
+            var bg = isRec ? COL.orange : (k === 0 ? '#261122' : (k === 1 ? '#0d222c' : '#141c2b'));
+            var brd = sel ? COL.orange : (k === 0 ? COL.pink : (k === 1 ? COL.cyan : COL.line));
+            roundRect(b.x, b.y, b.w, b.h, 6, bg, brd, sel ? 2.2 : 1);
+            ctx.fillStyle = '#fff';
+            ctx.font = (k < 2 ? 'bold 10.5px' : 'bold 9px') + ' -apple-system,sans-serif';
+            var txt = k === 0 ? ('TALK ' + m.agent.toUpperCase()) : (k === 3 ? ('SPK:' + m.spk.toUpperCase()) : b.label);
+            ctx.fillText(txt, b.x + ((b.w - ctx.measureText(txt).width) >> 1), b.y + (k < 2 ? 25 : 19));
+            if (k < 2) {
+                var sub = isRec ? 'PTT = SEND NOW' : (k === 0 ? 'Voice Reply' : 'Types on DGX');
+                ctx.fillStyle = isRec ? '#fff' : COL.dim; ctx.font = '8px -apple-system,sans-serif';
+                ctx.fillText(sub, b.x + ((b.w - ctx.measureText(sub).width) >> 1), b.y + 41);
+            }
+        }
+        drawFooter();
+    }
+
+    function drawDeckScreen() {
+        drawHeader('MACRO DECK', 'wheel/touch = aim · PTT = send key');
+        drawTabs();
+        for (var s = 0; s < Core.DECK_ITEMS.length; s++) {
+            var dr = Core.deckRect(s);
+            var sel = (s === m.deckCursor);
+            var catCol = dr.item.cat === 'ok' ? COL.green : (dr.item.cat === 'stop' ? COL.red : (dr.item.cat === 'cmd' ? COL.cyan : COL.dim));
+            roundRect(dr.x, dr.y, dr.w, dr.h, 6, sel ? '#1e2738' : COL.card, sel ? COL.orange : catCol, sel ? 2.2 : 1);
+            ctx.fillStyle = sel ? '#fff' : COL.text;
+            ctx.font = 'bold 10.5px -apple-system,sans-serif';
+            ctx.fillText(dr.item.short, dr.x + ((dr.w - ctx.measureText(dr.item.short).width) >> 1), dr.y + 19);
+            ctx.fillStyle = COL.dim; ctx.font = '8px -apple-system,sans-serif';
+            ctx.fillText(dr.item.sub, dr.x + ((dr.w - ctx.measureText(dr.item.sub).width) >> 1), dr.y + 33);
+        }
+        drawFooter();
+    }
+
+    function drawEyeScreen() {
+        drawHeader('360 AI EYE', 'tap viewfinder or PTT = shutter');
+        drawTabs();
+        roundRect(6, 62, 228, 134, 6, '#000', COL.cyan, 1);
+        var v = camObj.video;
+        if (v && v.readyState >= 2 && v.videoWidth > 0) {
+            ctx.drawImage(v, 8, 64, 224, 130);
+            ctx.strokeStyle = 'rgba(254,80,0,0.85)'; ctx.strokeRect(24, 76, 192, 106);
+        } else {
+            ctx.fillStyle = camObj.err ? '#ff8b8b' : COL.dim;
+            ctx.font = '10px -apple-system,sans-serif';
+            wrapText(camObj.err || ('starting R1 camera… (round ' + ((camObj.round || 0) + 1) + ')'), 14, 106, 210, 14, 4, camObj.err ? '#ff8b8b' : COL.dim);
+        }
+        roundRect(6, 200, 228, 52, 5, '#0c111b', COL.line, 1);
+        wrapText(m.lastReply, 11, 213, 216, 11, 3, COL.text, '9px -apple-system,sans-serif');
+        drawFooter();
+    }
+
+    function drawSysScreen() {
+        drawHeader('DGX SYSTEM', 'wheel/touch = aim · PTT = run');
+        drawTabs();
+        roundRect(6, 62, 228, 116, 6, '#0c111b', COL.line, 1);
+        var lines = [
+            'Bridge: ' + (apiBase() ? apiBase().replace(/^https?:\/\//, '').slice(0, 28) : 'same-origin (:8098)'),
+            'Companion: ' + m.agent.toUpperCase() + '  ·  Speaker: ' + m.spk.toUpperCase(),
+            'Ports Up: ' + m.portsUp + '  ·  RAM Free: ' + m.memGib + ' GiB',
+            'MYCIN Rules: ' + m.mycinRules + ' (0 gaps)',
+            'Storage: ' + storageMode + '  ·  Key: ' + (m.key ? 'paired' : 'missing')
+        ];
+        ctx.font = '9.5px -apple-system,sans-serif';
+        for (var i = 0; i < lines.length; i++) {
+            ctx.fillStyle = i === 0 ? COL.cyan : COL.text;
+            ctx.fillText(lines[i], 12, 80 + i * 20);
+        }
+        for (var k = 0; k < Core.SYS_ITEMS.length; k++) {
+            var b = Core.SYS_ITEMS[k], sel = (k === m.sysCursor);
+            roundRect(b.x, b.y, b.w, b.h, 6, sel ? '#1e2738' : COL.card, sel ? COL.orange : COL.line, sel ? 2.2 : 1);
+            ctx.fillStyle = sel ? '#fff' : COL.text; ctx.font = 'bold 9.5px -apple-system,sans-serif';
+            ctx.fillText(b.label, b.x + ((b.w - ctx.measureText(b.label).width) >> 1), b.y + 20);
+        }
+        drawFooter();
+    }
+
+    function drawActionMenu() {
+        ctx.fillStyle = COL.bg; ctx.fillRect(0, 0, W, H);
+        drawHeader('MENU', 'wheel/touch = aim · PTT = run · hold = back');
+        var L = actionList || ACTIONS;
+        var rows = 9, top = Math.max(0, Math.min(actionIndex - 4, L.length - rows));
+        for (var i = 0; i < rows && top + i < L.length; i++) {
+            var y = HEADER_H + 5 + i * 24, sel = (top + i) === actionIndex;
+            if (sel) roundRect(4, y - 2, W - 8, 22, 4, '#1e2738', COL.orange, 1.5);
+            ctx.fillStyle = sel ? '#fff' : COL.text;
+            ctx.font = (sel ? 'bold ' : '') + '10.5px -apple-system,sans-serif';
+            ctx.fillText(L[top + i].label, 12, y + 13);
+        }
+        drawFooter();
+    }
+
+    function drawShareScreen() {
+        ctx.fillStyle = COL.bg; ctx.fillRect(0, 0, W, H);
+        drawHeader('QR SHARE', 'PTT or hold = back');
+        if (shareState.busy) {
+            ctx.fillStyle = COL.dim; ctx.font = '11px -apple-system,sans-serif';
+            ctx.fillText('uploading PNG card…', 12, 70);
+        } else if (shareState.err) {
+            ctx.fillStyle = '#ff8b8b'; ctx.font = '11px -apple-system,sans-serif';
+            ctx.fillText(shareState.err, 12, 70);
+        } else if (shareState.url && window.MCQR) {
+            var probe = window.MCQR.encode(shareState.url);
+            if (probe) {
+                var scale = Math.max(2, Math.floor(176 / (probe.size + 8)));
+                var side = (probe.size + 8) * scale;
+                window.MCQR.draw(ctx, shareState.url, (W - side) >> 1, HEADER_H + 8, scale, 4);
+            }
+            ctx.fillStyle = COL.dim; ctx.font = '8px ui-monospace,monospace';
+            ctx.fillText(shareState.url.replace(/^https?:\/\//, '').slice(0, 38), 8, H - FOOTER_H - 6);
+        }
+        drawFooter();
+    }
+
+    function drawToast() {
+        if (Date.now() > toastUntil || !toast) return;
+        roundRect(12, H - FOOTER_H - 24, W - 24, 20, 4, 'rgba(18,24,36,0.95)', COL.orange, 1);
+        ctx.fillStyle = '#fff'; ctx.font = '9.5px -apple-system,sans-serif';
+        ctx.fillText(toast.slice(0, 38), 18, H - FOOTER_H - 11);
+    }
+
+    // ---- Input Routing: 45ms Wheel Debounce + Touch Aims, PTT Commits -------
+    var lastScrollAt = 0;
+    function onScroll(dir, bypassDebounce) {
+        if (!bypassDebounce) {
+            var now = Date.now();
+            if (now - lastScrollAt < 45) return;
+            lastScrollAt = now;
+        }
+        if (state === 'action') {
+            var L = actionList || ACTIONS;
+            actionIndex = Math.max(0, Math.min(L.length - 1, actionIndex + dir));
+        } else if (state === 'app') {
+            var prev = m.screen;
+            Core.scrollModel(m, dir);
+            if (prev === 'eye' && m.screen !== 'eye') camObj.close();
+            scheduleAutosave();
+        }
+        dirty = true;
+    }
+
+    function onAction() {                            // PTT tap = COMMIT
+        if (recState.active) { stopVoice(false); return; }
+        if (state === 'action') { (actionList || ACTIONS)[actionIndex].run(); dirty = true; return; }
+        if (state === 'share') { state = 'app'; dirty = true; return; }
+
+        if (m.screen === 'mic') {
+            var id = Core.MIC_ITEMS[Core.MIC_PATH[m.micCursor]].id;
+            if (id === 'talk_ani') startVoice('talk_ani');
+            else if (id === 'dictate_pc') startVoice('dictate_pc');
+            else if (id === 'approve_q') sendDeckAction('approve');
+            else if (id === 'cycle_spk') {
+                m.spk = Core.SPK_MODES[(Core.SPK_MODES.indexOf(m.spk) + 1) % Core.SPK_MODES.length];
+                scheduleAutosave(); say('speaker: ' + m.spk.toUpperCase());
+            } else if (id === 'toggle_agent') sendDeckAction('toggle_agent');
+            else if (id === 'stop_q') sendDeckAction('stop');
+        } else if (m.screen === 'deck') {
+            sendDeckAction(Core.DECK_ITEMS[m.deckCursor].id);
+        } else if (m.screen === 'eye') {
+            snapVision();
+        } else if (m.screen === 'sys') {
+            var sid = Core.SYS_ITEMS[m.sysCursor].id;
+            if (sid === 'ping') refreshStatus();
+            else if (sid === 'sync') { say('syncing tunnel…'); syncEndpoint().then(refreshStatus); }
+            else if (sid === 'share_card') shareCurrentCanvas();
+            else if (sid === 'exit_app') {
+                stopVoice(true); camObj.close();
+                if (window.closeWebView) closeWebView.postMessage(''); else say('exit: device only');
+            }
+        }
+        dirty = true;
+    }
+
+    function onLongPress() {                         // PTT hold = MENU / BACK
+        if (recState.active) { stopVoice(true); return; }
+        if (state === 'action' || state === 'share') { state = 'app'; }
+        else { openMenu(ACTIONS); }
+        dirty = true;
+    }
+
+    function onPoint(px, py) {                       // TOUCH = AIM ONLY (except camera shutter)
+        if (state === 'action') {
+            var L = actionList || ACTIONS;
+            var row = Math.floor((py - HEADER_H - 5) / 24);
+            var top = Math.max(0, Math.min(actionIndex - 4, L.length - 9));
+            if (row >= 0 && top + row < L.length) { actionIndex = top + row; dirty = true; }
+            return;
+        }
+        if (state === 'share') { state = 'app'; dirty = true; return; }
+        var prevScreen = m.screen;
+        var hit = Core.applyPoint(m, px, py);
+        if (hit.kind === 'header_menu') { openMenu(ACTIONS); return; }
+        if (hit.kind === 'tab') {
+            if (prevScreen === 'eye' && m.screen !== 'eye') camObj.close();
+            if (m.screen === 'eye' && prevScreen !== 'eye') camObj.open();
+            if (m.screen === 'sys') refreshStatus();
+            scheduleAutosave(); dirty = true; return;
+        }
+        if (hit.kind === 'camera_shutter') { snapVision(); return; }
+        if (hit.kind.indexOf('aim_') === 0) {
+            say('aimed: ' + hit.id + ' · PTT = run');
+            scheduleAutosave(); dirty = true;
+        }
+    }
+
+    window.addEventListener('scrollUp', function () { onScroll(-1, false); });
+    window.addEventListener('scrollDown', function () { onScroll(1, false); });
+    window.addEventListener('sideClick', onAction);
+    window.addEventListener('longPressStart', onLongPress);
+    canvas.addEventListener('mousedown', function (e) {
+        var r = canvas.getBoundingClientRect();
+        onPoint((e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height);
+    });
+    canvas.addEventListener('touchstart', function (e) {
+        if (!e.touches.length) return;
+        e.preventDefault();
+        var t = e.touches[0], r = canvas.getBoundingClientRect();
+        onPoint((t.clientX - r.left) * W / r.width, (t.clientY - r.top) * H / r.height);
+    }, { passive: false });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowUp') onScroll(-1, false);
+        else if (e.key === 'ArrowDown') onScroll(1, false);
+        else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onAction(); }
+        else if (e.key === 'Escape' || e.key === 'b') onLongPress();
+    });
+
+    setInterval(function () {
+        if (toast && Date.now() < toastUntil + 50) dirty = true;
+        if (recState.active || (state === 'app' && m.screen === 'eye' && camObj.stream)) dirty = true;
+        if (!dirty) return;
+        dirty = false;
+        ctx.fillStyle = COL.bg; ctx.fillRect(0, 0, W, H);
+        if (state === 'action') drawActionMenu();
+        else if (state === 'share') drawShareScreen();
+        else if (m.screen === 'deck') drawDeckScreen();
+        else if (m.screen === 'eye') drawEyeScreen();
+        else if (m.screen === 'sys') drawSysScreen();
+        else drawMicScreen();
+        drawToast();
+    }, 33);
+
+    function restore(d) {
+        Core.restoreModel(m, d);
+        state = 'app'; dirty = true;
+    }
+
+    function boot() {
+        storageGet(AUTOSAVE_KEY, function (saved) {
+            restore(saved);
+            if (Core.mergeHash(m, location.hash)) autosaveNow();
+            syncEndpoint().then(refreshStatus);
+        });
+    }
+    boot();
+
+    window.__APP__ = {
+        state: function () { return state; },
+        model: function () { return m; },
+        storageMode: storageMode,
+        snapshot: snapshot,
+        restore: restore,
+        autosaveNow: autosaveNow,
+        boot: boot,
+        scroll: function (d) { onScroll(d, true); },
+        action: onAction,
+        longPress: onLongPress,
+        point: onPoint,
+        actions: function () { return ACTIONS.map(function (a) { return a.label; }); },
+        runAction: function (i) { actionIndex = i; ACTIONS[i].run(); dirty = true; return state; },
+        share: function () { return shareState; },
+        canvas: function () { return canvas; }
+    };
 })();
 </script>
 </body>
