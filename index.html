@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=240,height=282,initial-scale=1.0,viewport-fit=cover,user-scalable=no,maximum-scale=1.0">
+<title>EVE DECK</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+html,body{width:240px;height:282px;overflow:hidden;position:fixed;background:#090b10;color:#e6edf3;font:11px -apple-system,BlinkMacSystemFont,sans-serif}
+#app{width:240px;height:282px;display:flex;flex-direction:column;background:linear-gradient(180deg,#0d1118 0%,#07090e 100%)}
+.top{height:28px;display:flex;align-items:center;gap:2px;padding:2px 3px;background:#111622;border-bottom:1px solid #222c3c}
+.tab{flex:1;height:22px;border:1px solid #253042;border-radius:5px;background:#161d2b;color:#93a3b8;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.tab.on{background:#FE5000;color:#fff;border-color:#ff7a3d}
+.ag{padding:0 6px;height:22px;border-radius:5px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;border:1px solid #ec4899;background:#2b1224;color:#ff80bf}
+.ag.jules{border-color:#00E5FF;background:#0d252e;color:#00E5FF}
+.pane{flex:1;display:none;flex-direction:column;padding:5px;gap:4px;overflow:hidden}
+.pane.on{display:flex}
+.wave-wrap{height:30px;background:#05070b;border:1px solid #1e293b;border-radius:6px;position:relative;overflow:hidden}
+#wave{width:228px;height:28px;display:block}
+.rec-dot{position:absolute;top:5px;right:6px;font-size:9px;font-weight:800;color:#ff4444;display:none}
+.rec-dot.on{display:block}
+.log{flex:1;background:#0c1017;border:1px solid #1c2536;border-radius:6px;padding:5px 6px;font-size:10.5px;line-height:1.32;overflow-y:auto;color:#d6e0ee;word-break:break-word}
+.log .you{color:#00E5FF;font-weight:700}
+.log .ai{color:#ff80bf;font-weight:700}
+.row2{display:flex;gap:4px;height:44px}
+.big-btn{flex:1;border-radius:8px;border:1.5px solid #2e3b52;background:#151c28;color:#fff;font-weight:800;font-size:10.5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer}
+.big-btn.ani{border-color:#ec4899;background:linear-gradient(180deg,#2d1226,#1a0b17)}
+.big-btn.pc{border-color:#00E5FF;background:linear-gradient(180deg,#0d2630,#09171e)}
+.big-btn.rec{background:#FE5000!important;border-color:#fff!important;color:#fff!important}
+.big-btn.sel{outline:2px solid #FE5000;outline-offset:-2px}
+.sub-row{display:flex;gap:4px;height:24px}
+.mini-btn{flex:1;border-radius:5px;border:1px solid #263246;background:#121824;color:#b8c7dc;font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.mini-btn.sel,.grid-btn.sel{outline:2px solid #FE5000;outline-offset:-2px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:1fr;gap:4px;flex:1}
+.grid-btn{border-radius:7px;border:1px solid #293548;background:#141b27;color:#eef4fc;font-size:10px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;text-align:center;padding:2px}
+.grid-btn:active,.big-btn:active,.mini-btn:active{background:#FE5000;color:#fff}
+.grid-btn.ok{border-color:#22c55e;color:#86efac}
+.grid-btn.stop{border-color:#ef4444;color:#fca5a5}
+.grid-btn.cmd{border-color:#00E5FF;color:#7dd3fc}
+.cam-box{width:228px;height:142px;background:#000;border:1px solid #273347;border-radius:6px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+#cam-canvas{width:228px;height:142px;display:block}
+.sys-box{background:#0c111a;border:1px solid #1e293b;border-radius:6px;padding:6px;font-size:10px;line-height:1.45;flex:1;color:#cbd5e1}
+.foot{height:18px;background:#0c1018;border-top:1px solid #1c2434;padding:0 6px;display:flex;align-items:center;justify-content:space-between;font-size:9px;color:#8b9bb4}
+.dot{width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block;margin-right:4px}
+.dot.ok{background:#22c55e}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top">
+    <div class="tab on" data-tab="mic">MIC</div>
+    <div class="tab" data-tab="deck">DECK</div>
+    <div class="tab" data-tab="eye">EYE</div>
+    <div class="tab" data-tab="sys">SYS</div>
+    <div id="ag-btn" class="ag" title="Switch Ani / Jules">ANI</div>
+  </div>
+
+  <div id="pane-mic" class="pane on">
+    <div class="wave-wrap">
+      <canvas id="wave" width="228" height="28"></canvas>
+      <div id="rec-badge" class="rec-dot">● REC</div>
+    </div>
+    <div id="chat-log" class="log"><b>EVE Cyberdeck Ready.</b><br>Tap button or press R1 Side PTT to speak to Ani/Jules or dictate to PC cursor.</div>
+    <div class="row2">
+      <div id="btn-ani" class="big-btn ani sel" data-idx="0"><span>🗣️ TALK ANI</span><small id="lbl-ptt-ani" style="font-size:8px;opacity:.8">Tap or Side PTT</small></div>
+      <div id="btn-pc" class="big-btn pc" data-idx="1"><span>⌨️ DICTATE PC</span><small style="font-size:8px;opacity:.8">Types at Cursor</small></div>
+    </div>
+    <div class="sub-row">
+      <div id="btn-spk" class="mini-btn" data-idx="2">🔊 SPK: R1</div>
+      <div id="btn-quick-y" class="mini-btn" data-idx="3">✅ Y+ENT</div>
+      <div id="btn-quick-stop" class="mini-btn" data-idx="4">🛑 STOP</div>
+    </div>
+  </div>
+
+  <div id="pane-deck" class="pane">
+    <div id="deck-grid" class="grid"></div>
+  </div>
+
+  <div id="pane-eye" class="pane">
+    <div class="cam-box"><canvas id="cam-canvas" width="228" height="142"></canvas></div>
+    <div id="eye-log" class="log" style="max-height:48px;font-size:9.5px">360° AI Eye -> meta/muse-glimmer. Tap SNAP or press Side PTT.</div>
+    <div class="sub-row" style="height:28px">
+      <div id="btn-snap" class="mini-btn" style="background:#FE5000;color:#fff;border-color:#ff7a3d">📸 SNAP &amp; ASK ANI</div>
+      <div id="btn-cam-retry" class="mini-btn">🔄 CAM</div>
+    </div>
+  </div>
+
+  <div id="pane-sys" class="pane">
+    <div id="sys-info" class="sys-box">Checking DGX Spark Sovereign Bridge...</div>
+    <div class="sub-row" style="height:28px">
+      <div id="btn-sync" class="mini-btn" style="border-color:#00E5FF;color:#00E5FF">🔄 SYNC TUNNEL</div>
+      <div id="btn-ping" class="mini-btn">📡 PING</div>
+      <div id="btn-exit" class="mini-btn" style="border-color:#ef4444;color:#fca5a5">✖ EXIT</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span><i id="conn-dot" class="dot"></i><span id="foot-msg">booting...</span></span>
+    <span id="foot-right">wheel+PTT</span>
+  </div>
+</div>
+<script>
+(function(){
+  'use strict';
+  var STORE_KEY = 'eve_r1_cyberdeck_v1';
+  var TABS = ['mic', 'deck', 'eye', 'sys'];
+  var SPK_MODES = ['r1', 'both', 'pc'];
+  var DECK_BTNS = [
+    { id: 'approve', label: '✅ Y+ENT', cls: 'ok' },
+    { id: 'enter', label: '⏎ SEND', cls: 'ok' },
+    { id: 'stop', label: '🛑 STOP', cls: 'stop' },
+    { id: 'slash_plan', label: '📐 /plan', cls: 'cmd' },
+    { id: 'slash_boost', label: '🚀 /boost', cls: 'cmd' },
+    { id: 'slash_goal', label: '🎯 /goal', cls: 'cmd' },
+    { id: 'slash_teamwork', label: '🐝 /team', cls: 'cmd' },
+    { id: 'slash_compact', label: '📦 /comp', cls: 'cmd' },
+    { id: 'paste', label: '📋 PASTE', cls: '' },
+    { id: 'open_ani', label: '🎀 8094', cls: '' },
+    { id: 'open_radar', label: '📡 8095', cls: '' },
+    { id: 'focus_dev', label: '💻 TERM', cls: '' }
+  ];
+
+  var cfg = { key: '', bridge: '', spk: 'r1', agent: 'ani', explicitBridge: false };
+  var tab = 'mic';
+  var micSel = 0; // 0=talk_ani, 1=dictate_pc, 2=spk, 3=y+ent, 4=stop
+  var deckSel = 0;
+  var recState = { active: false, mode: 'talk_ani', mr: null, chunks: [], stream: null, actx: null, analyser: null };
+  var cam = { stream: null, video: null, round: 0, starting: false, busy: false };
+  var curAudio = null;
+
+  function $(id){ return document.getElementById(id); }
+  function foot(msg, ok){
+    $('foot-msg').textContent = msg;
+    if (ok === true) $('conn-dot').className = 'dot ok';
+    else if (ok === false) $('conn-dot').className = 'dot';
+  }
+
+  function storageSave(){
+    var raw = btoa(unescape(encodeURIComponent(JSON.stringify({ key: cfg.key, bridge: cfg.bridge, spk: cfg.spk }))));
+    try { if (window.creationStorage && creationStorage.plain) creationStorage.plain.setItem(STORE_KEY, raw); } catch(e){}
+    try { localStorage.setItem(STORE_KEY, raw); } catch(e){}
+  }
+  function storageLoad(cb){
+    function decode(raw){
+      if (!raw) return null;
+      try { return JSON.parse(decodeURIComponent(escape(atob(raw)))); } catch(e){ return null; }
+    }
+    if (window.creationStorage && creationStorage.plain) {
+      try {
+        Promise.resolve(creationStorage.plain.getItem(STORE_KEY)).then(function(r){
+          cb(decode(r) || decode(localStorage.getItem(STORE_KEY)));
+        }).catch(function(){ cb(decode(localStorage.getItem(STORE_KEY))); });
+        return;
+      } catch(e){}
+    }
+    try { cb(decode(localStorage.getItem(STORE_KEY))); } catch(e){ cb(null); }
+  }
+
+  function apiBase(){ return (cfg.bridge || '').replace(/\/+$/, ''); }
+  function apiFetch(path, opts, retried){
+    opts = opts || {};
+    opts.headers = opts.headers || {};
+    if (cfg.key) opts.headers['Authorization'] = 'Bearer ' + cfg.key;
+    return fetch(apiBase() + path, opts).then(function(r){
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).catch(function(err){
+      if (!retried && !cfg.explicitBridge) {
+        return syncEndpoint().then(function(){ return apiFetch(path, opts, true); });
+      }
+      throw err;
+    });
+  }
+
+  function syncEndpoint(){
+    return fetch('./endpoint.json?t=' + Date.now(), { cache: 'no-store' })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if (d && typeof d.bridge_url === 'string' && !cfg.explicitBridge) {
+          cfg.bridge = d.bridge_url.replace(/\/+$/, '');
+          storageSave();
+        }
+        return d;
+      }).catch(function(){ return null; });
+  }
+
+  function updateSpkBtn(){ $('btn-spk').textContent = '🔊 SPK: ' + cfg.spk.toUpperCase(); }
+  function updateAgentBadge(ag){
+    cfg.agent = (ag || 'ani').toLowerCase();
+    var b = $('ag-btn');
+    b.textContent = cfg.agent.toUpperCase();
+    b.className = 'ag' + (cfg.agent === 'jules' ? ' jules' : '');
+    $('btn-ani').querySelector('span').textContent = '🗣️ TALK ' + cfg.agent.toUpperCase();
+  }
+
+  function setTab(t){
+    tab = t;
+    var tabs = document.querySelectorAll('.tab');
+    for (var i = 0; i < tabs.length; i++) tabs[i].className = 'tab' + (tabs[i].getAttribute('data-tab') === t ? ' on' : '');
+    for (var j = 0; j < TABS.length; j++) $('pane-' + TABS[j]).className = 'pane' + (TABS[j] === t ? ' on' : '');
+    if (t === 'eye') openCamera(); else stopCamera();
+    if (t === 'sys') refreshStatus();
+  }
+
+  function renderDeck(){
+    var g = $('deck-grid'); g.innerHTML = '';
+    DECK_BTNS.forEach(function(b, idx){
+      var el = document.createElement('div');
+      el.className = 'grid-btn ' + b.cls + (idx === deckSel ? ' sel' : '');
+      el.textContent = b.label;
+      el.addEventListener('click', function(){ deckSel = idx; highlightDeck(); runDeckAction(b.id); });
+      g.appendChild(el);
+    });
+  }
+  function highlightDeck(){
+    var els = $('deck-grid').children;
+    for (var i = 0; i < els.length; i++) {
+      els[i].className = 'grid-btn ' + DECK_BTNS[i].cls + (i === deckSel ? ' sel' : '');
+    }
+  }
+  function highlightMic(){
+    var ids = ['btn-ani', 'btn-pc', 'btn-spk', 'btn-quick-y', 'btn-quick-stop'];
+    for (var i = 0; i < ids.length; i++) {
+      var el = $(ids[i]);
+      el.classList.toggle('sel', i === micSel);
+    }
+  }
+
+  function runDeckAction(act){
+    foot('sending ' + act + '...', true);
+    apiFetch('/api/r1/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: act })
+    }).then(function(res){
+      if (res.active_agent) updateAgentBadge(res.active_agent);
+      foot(res.label || 'done', true);
+    }).catch(function(e){ foot('err: ' + e.message, false); });
+  }
+
+  function playBase64Audio(b64, mime){
+    if (!b64) return;
+    try {
+      if (curAudio) { curAudio.pause(); curAudio = null; }
+      curAudio = new Audio('data:' + (mime || 'audio/wav') + ';base64,' + b64);
+      var p = curAudio.play();
+      if (p && p.catch) p.catch(function(){});
+    } catch(e){}
+  }
+
+  function pickMime(){
+    if (typeof MediaRecorder === 'undefined') return '';
+    var types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+    for (var i = 0; i < types.length; i++) {
+      if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(types[i])) return types[i];
+    }
+    return '';
+  }
+
+  function drawWaveLoop(){
+    var cv = $('wave'), x = cv.getContext('2d');
+    requestAnimationFrame(drawWaveLoop);
+    x.fillStyle = '#05070b'; x.fillRect(0, 0, cv.width, cv.height);
+    if (!recState.active || !recState.analyser) {
+      x.strokeStyle = '#1e293b'; x.beginPath(); x.moveTo(0, 14); x.lineTo(cv.width, 14); x.stroke();
+      return;
+    }
+    var buf = new Uint8Array(recState.analyser.fftSize);
+    recState.analyser.getByteTimeDomainData(buf);
+    x.strokeStyle = recState.mode === 'dictate_pc' ? '#00E5FF' : '#FE5000';
+    x.lineWidth = 1.6; x.beginPath();
+    var slice = cv.width / buf.length;
+    for (var i = 0; i < buf.length; i++) {
+      var v = buf[i] / 128.0, y = v * 14;
+      if (i === 0) x.moveTo(0, y); else x.lineTo(i * slice, y);
+    }
+    x.stroke();
+  }
+
+  function toggleVoice(mode){
+    if (recState.active) { stopVoice(); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      $('chat-log').innerHTML = '<b>Mic requires HTTPS!</b> Use the paired QR code.';
+      foot('mic blocked (need https)', false);
+      return;
+    }
+    recState.mode = mode;
+    foot('opening R1 mic...', true);
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then(function(stream){
+      recState.stream = stream;
+      recState.chunks = [];
+      var mime = pickMime();
+      var mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      recState.mr = mr;
+      try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) {
+          recState.actx = new AC();
+          var src = recState.actx.createMediaStreamSource(stream);
+          recState.analyser = recState.actx.createAnalyser();
+          recState.analyser.fftSize = 128;
+          src.connect(recState.analyser);
+        }
+      } catch(e){}
+      mr.ondataavailable = function(ev){ if (ev.data && ev.data.size > 0) recState.chunks.push(ev.data); };
+      mr.onstop = function(){ sendVoiceClip(mr.mimeType || mime || 'audio/webm'); };
+      mr.start();
+      recState.active = true;
+      $('rec-badge').className = 'rec-dot on';
+      $(mode === 'dictate_pc' ? 'btn-pc' : 'btn-ani').classList.add('rec');
+      foot('recording... tap/PTT to send', true);
+    }).catch(function(e){
+      foot('mic err: ' + (e.name || e.message), false);
+    });
+  }
+
+  function stopVoice(){
+    if (!recState.active) return;
+    recState.active = false;
+    $('rec-badge').className = 'rec-dot';
+    $('btn-ani').classList.remove('rec');
+    $('btn-pc').classList.remove('rec');
+    try { if (recState.mr && recState.mr.state !== 'inactive') recState.mr.stop(); } catch(e){}
+    try { if (recState.stream) recState.stream.getTracks().forEach(function(t){ t.stop(); }); } catch(e){}
+    try { if (recState.actx) recState.actx.close(); } catch(e){}
+    recState.stream = null; recState.actx = null; recState.analyser = null;
+  }
+
+  function sendVoiceClip(mime){
+    if (!recState.chunks.length) { foot('empty clip', false); return; }
+    var ext = mime.indexOf('mp4') >= 0 ? 'r1.mp4' : 'r1.webm';
+    var blob = new Blob(recState.chunks, { type: mime });
+    var fd = new FormData();
+    fd.append('audio', blob, ext);
+    fd.append('mode', recState.mode);
+    fd.append('speaker', cfg.spk);
+    foot(recState.mode === 'dictate_pc' ? 'typing on PC...' : 'thinking...', true);
+    $('chat-log').innerHTML = '<i>Transcribing via Faster-Whisper...</i>';
+    apiFetch('/api/r1/voice', { method: 'POST', body: fd }).then(function(res){
+      if (!res.ok) { $('chat-log').textContent = res.error || 'Voice error'; foot('voice err', false); return; }
+      var agName = (res.agent || cfg.agent || 'ani').toUpperCase();
+      if (res.agent) updateAgentBadge(res.agent);
+      $('chat-log').innerHTML = '<span class="you">YOU:</span> ' + (res.transcript || '(empty)') +
+        '<br><span class="ai">' + (recState.mode === 'dictate_pc' ? 'PC' : agName) + ':</span> ' + (res.reply || '');
+      if (res.audio_base64) playBase64Audio(res.audio_base64, res.audio_mime);
+      foot(recState.mode === 'dictate_pc' ? 'typed at cursor!' : agName + ' replied', true);
+    }).catch(function(e){
+      $('chat-log').textContent = 'Bridge error: ' + e.message;
+      foot('bridge offline', false);
+    });
+  }
+
+  // Proven 3-round Rabbit R1 camera activation adapted from Winzmiau/mcskin-r1
+  function stopCamera(){
+    if (cam.stream) { try { cam.stream.getTracks().forEach(function(t){ t.stop(); }); } catch(e){} cam.stream = null; }
+    cam.video = null; cam.starting = false;
+  }
+  function openCamera(){
+    if (cam.stream || cam.starting) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      $('eye-log').textContent = 'Camera needs HTTPS Creation mode.'; return;
+    }
+    cam.starting = true; cam.round = 0;
+    function tryRound(){
+      var base = [{ video: { facingMode: { ideal: 'environment' } }, audio: false }, { video: true, audio: false }];
+      Promise.resolve().then(function(){ return navigator.mediaDevices.enumerateDevices(); }).then(function(devs){
+        var cams = (devs || []).filter(function(d){ return d.kind === 'videoinput' && d.deviceId; });
+        var list = cams.map(function(d){ return { video: { deviceId: { exact: d.deviceId } }, audio: false }; }).concat(base);
+        attempt(list, 0);
+      }).catch(function(){ attempt(base, 0); });
+    }
+    function attempt(list, i){
+      if (i >= list.length) {
+        cam.starting = false; cam.round++;
+        if (cam.round < 3) setTimeout(function(){ cam.starting = true; tryRound(); }, 450 * cam.round);
+        else $('eye-log').textContent = 'Tap CAM or press PTT to wake R1 Eye.';
+        return;
+      }
+      stopCamera();
+      navigator.mediaDevices.getUserMedia(list[i]).then(function(st){
+        cam.stream = st;
+        var v = document.createElement('video');
+        v.setAttribute('playsinline', ''); v.setAttribute('autoplay', ''); v.muted = true;
+        v.srcObject = st;
+        var p = v.play(); if (p && p.catch) p.catch(function(){});
+        cam.video = v; cam.starting = false;
+        $('eye-log').textContent = 'AI Eye live. Tap SNAP or press Side PTT.';
+      }).catch(function(){ attempt(list, i + 1); });
+    }
+    tryRound();
+  }
+  function drawCamLoop(){
+    requestAnimationFrame(drawCamLoop);
+    if (tab !== 'eye') return;
+    var cv = $('cam-canvas'), x = cv.getContext('2d');
+    if (cam.video && cam.video.readyState >= 2) {
+      x.drawImage(cam.video, 0, 0, cv.width, cv.height);
+      x.strokeStyle = 'rgba(0,229,255,0.6)'; x.strokeRect(4, 4, cv.width - 8, cv.height - 8);
+    }
+  }
+  function snapVision(){
+    if (cam.busy) return;
+    if (!cam.video || cam.video.readyState < 2) { openCamera(); return; }
+    cam.busy = true;
+    var cv = $('cam-canvas');
+    $('eye-log').textContent = 'Sending frame to meta/muse-glimmer...';
+    foot('analyzing vision...', true);
+    var sendBlob = function(blob){
+      var fd = new FormData();
+      fd.append('image', blob, 'eye.jpg');
+      fd.append('speaker', cfg.spk);
+      apiFetch('/api/r1/vision', { method: 'POST', body: fd }).then(function(res){
+        cam.busy = false;
+        $('eye-log').textContent = res.ok ? res.reply : (res.error || 'Vision error');
+        if (res.audio_base64) playBase64Audio(res.audio_base64, 'audio/wav');
+        foot(res.ok ? 'vision ready' : 'vision err', !!res.ok);
+      }).catch(function(e){ cam.busy = false; $('eye-log').textContent = 'Err: ' + e.message; foot('vision offline', false); });
+    };
+    if (cv.toBlob) cv.toBlob(sendBlob, 'image/jpeg', 0.84);
+    else {
+      var b64 = cv.toDataURL('image/jpeg', 0.84).split(',')[1], bin = atob(b64), arr = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      sendBlob(new Blob([arr], { type: 'image/jpeg' }));
+    }
+  }
+
+  function refreshStatus(){
+    apiFetch('/api/r1/status').then(function(st){
+      updateAgentBadge(st.active_agent);
+      foot('DGX online · ' + st.ports_up + ' ports', true);
+      $('sys-info').innerHTML =
+        '<b>Bridge:</b> ' + (apiBase() || 'same-origin (:8098)') + '<br>' +
+        '<b>Active Agent:</b> ' + st.active_agent.toUpperCase() + '<br>' +
+        '<b>Ports Up:</b> ' + st.ports_up + ' · <b>RAM Free:</b> ' + st.mem_avail_gib + ' GiB<br>' +
+        '<b>MYCIN Rules:</b> ' + st.mycin_rules + '<br>' +
+        '<b>Models:</b> ' + (st.loaded_models || []).join(', ');
+    }).catch(function(e){
+      foot('offline (' + e.message + ')', false);
+      $('sys-info').innerHTML = '<b>Bridge Offline:</b> ' + e.message + '<br>Tap <b>SYNC TUNNEL</b> to fetch latest endpoint.json.';
+    });
+  }
+
+  // Hardware Scroll Wheel + Side PTT Button (mcskin-r1 45ms detent debounce)
+  var lastScroll = 0;
+  function onScroll(dir){
+    var now = Date.now(); if (now - lastScroll < 45) return; lastScroll = now;
+    if (tab === 'mic') { micSel = (micSel + dir + 5) % 5; highlightMic(); }
+    else if (tab === 'deck') { deckSel = (deckSel + dir + DECK_BTNS.length) % DECK_BTNS.length; highlightDeck(); }
+    else { var ti = (TABS.indexOf(tab) + dir + TABS.length) % TABS.length; setTab(TABS[ti]); }
+  }
+  function onSideClick(){
+    if (recState.active) { stopVoice(); return; }
+    if (tab === 'mic') {
+      if (micSel === 0) toggleVoice('talk_ani');
+      else if (micSel === 1) toggleVoice('dictate_pc');
+      else if (micSel === 2) $('btn-spk').click();
+      else if (micSel === 3) runDeckAction('approve');
+      else if (micSel === 4) runDeckAction('stop');
+    } else if (tab === 'deck') {
+      runDeckAction(DECK_BTNS[deckSel].id);
+    } else if (tab === 'eye') {
+      snapVision();
+    } else {
+      refreshStatus();
+    }
+  }
+  function onLongPress(){
+    if (recState.active) { stopVoice(); return; }
+    var ti = (TABS.indexOf(tab) + 1) % TABS.length;
+    setTab(TABS[ti]);
+  }
+
+  window.addEventListener('scrollUp', function(){ onScroll(-1); });
+  window.addEventListener('scrollDown', function(){ onScroll(1); });
+  window.addEventListener('sideClick', onSideClick);
+  window.addEventListener('longPressStart', onLongPress);
+
+  // Touch bindings
+  var tabEls = document.querySelectorAll('.tab');
+  for (var i = 0; i < tabEls.length; i++) {
+    (function(el){ el.addEventListener('click', function(){ setTab(el.getAttribute('data-tab')); }); })(tabEls[i]);
+  }
+  $('ag-btn').addEventListener('click', function(){ runDeckAction('toggle_agent'); });
+  $('btn-ani').addEventListener('click', function(){ micSel = 0; highlightMic(); toggleVoice('talk_ani'); });
+  $('btn-pc').addEventListener('click', function(){ micSel = 1; highlightMic(); toggleVoice('dictate_pc'); });
+  $('btn-spk').addEventListener('click', function(){
+    micSel = 2; highlightMic();
+    cfg.spk = SPK_MODES[(SPK_MODES.indexOf(cfg.spk) + 1) % SPK_MODES.length];
+    updateSpkBtn(); storageSave();
+  });
+  $('btn-quick-y').addEventListener('click', function(){ micSel = 3; highlightMic(); runDeckAction('approve'); });
+  $('btn-quick-stop').addEventListener('click', function(){ micSel = 4; highlightMic(); runDeckAction('stop'); });
+  $('btn-snap').addEventListener('click', snapVision);
+  $('btn-cam-retry').addEventListener('click', function(){ stopCamera(); openCamera(); });
+  $('btn-sync').addEventListener('click', function(){ foot('syncing tunnel...', true); syncEndpoint().then(refreshStatus); });
+  $('btn-ping').addEventListener('click', refreshStatus);
+  $('btn-exit').addEventListener('click', function(){
+    stopVoice(); stopCamera();
+    try { if (typeof closeWebView !== 'undefined') closeWebView.postMessage(''); } catch(e){}
+  });
+
+  // Boot: read saved creationStorage -> merge #key & #bridge -> sync endpoint.json -> connect!
+  renderDeck(); highlightMic(); drawWaveLoop(); drawCamLoop();
+  storageLoad(function(saved){
+    if (saved) {
+      if (saved.key) cfg.key = saved.key;
+      if (saved.bridge) cfg.bridge = saved.bridge;
+      if (saved.spk) cfg.spk = saved.spk;
+    }
+    var h = (location.hash || '').replace(/^#/, '');
+    if (h) {
+      var sp = new URLSearchParams(h);
+      if (sp.get('key')) cfg.key = sp.get('key');
+      if (sp.has('bridge')) { cfg.bridge = sp.get('bridge') || ''; cfg.explicitBridge = true; }
+      storageSave();
+    }
+    updateSpkBtn();
+    syncEndpoint().then(refreshStatus);
+  });
+})();
+</script>
+</body>
+</html>
