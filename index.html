@@ -533,8 +533,8 @@ function R1Camera(opts) {
     function deckRect(serpIdx) {
         var rc = deckCellRC(serpIdx);
         var gx = 6 + rc[1] * 77;
-        var gy = HEADER_H + TAB_H + 6 + rc[0] * 48;
-        return { x: gx, y: gy, w: 74, h: 44, r: rc[0], c: rc[1], item: DECK_ITEMS[serpIdx] };
+        var gy = HEADER_H + TAB_H + 4 + rc[0] * 43;
+        return { x: gx, y: gy, w: 74, h: 39, r: rc[0], c: rc[1], item: DECK_ITEMS[serpIdx] };
     }
 
     function tabRect(tabIdx) {
@@ -1182,9 +1182,9 @@ function R1Camera(opts) {
             roundRect(dr.x, dr.y, dr.w, dr.h, 6, sel ? '#1e2738' : COL.card, sel ? COL.orange : catCol, sel ? 2.2 : 1);
             ctx.fillStyle = sel ? '#fff' : COL.text;
             ctx.font = 'bold 10.5px -apple-system,sans-serif';
-            ctx.fillText(dr.item.short, dr.x + ((dr.w - ctx.measureText(dr.item.short).width) >> 1), dr.y + 19);
+            ctx.fillText(dr.item.short, dr.x + ((dr.w - ctx.measureText(dr.item.short).width) >> 1), dr.y + 16);
             ctx.fillStyle = COL.dim; ctx.font = '8px -apple-system,sans-serif';
-            ctx.fillText(dr.item.sub, dr.x + ((dr.w - ctx.measureText(dr.item.sub).width) >> 1), dr.y + 33);
+            ctx.fillText(dr.item.sub, dr.x + ((dr.w - ctx.measureText(dr.item.sub).width) >> 1), dr.y + 30);
         }
         drawFooter();
     }
@@ -1271,9 +1271,9 @@ function R1Camera(opts) {
 
     function drawToast() {
         if (Date.now() > toastUntil || !toast) return;
-        roundRect(12, H - FOOTER_H - 24, W - 24, 20, 4, 'rgba(18,24,36,0.95)', COL.orange, 1);
+        roundRect(12, H - FOOTER_H - 22, W - 24, 19, 4, 'rgba(18,24,36,0.96)', COL.orange, 1);
         ctx.fillStyle = '#fff'; ctx.font = '9.5px -apple-system,sans-serif';
-        ctx.fillText(toast.slice(0, 38), 18, H - FOOTER_H - 11);
+        ctx.fillText(toast.slice(0, 38), 18, H - FOOTER_H - 9);
     }
 
     // ---- Input Routing: 45ms Wheel Debounce + Touch Aims, PTT Commits -------
@@ -1404,7 +1404,11 @@ function R1Camera(opts) {
     function boot() {
         storageGet(AUTOSAVE_KEY, function (saved) {
             restore(saved);
-            if (Core.mergeHash(m, location.hash)) autosaveNow();
+            var h = location.hash;
+            if (!h && window.parent && window.parent !== window) {
+                try { h = window.parent.location.hash || ''; } catch (e) {}
+            }
+            if (Core.mergeHash(m, h)) autosaveNow();
             syncEndpoint().then(refreshStatus);
         });
     }

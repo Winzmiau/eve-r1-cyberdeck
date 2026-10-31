@@ -423,8 +423,8 @@
     function deckRect(serpIdx) {
         var rc = deckCellRC(serpIdx);
         var gx = 6 + rc[1] * 77;
-        var gy = HEADER_H + TAB_H + 6 + rc[0] * 48;
-        return { x: gx, y: gy, w: 74, h: 44, r: rc[0], c: rc[1], item: DECK_ITEMS[serpIdx] };
+        var gy = HEADER_H + TAB_H + 4 + rc[0] * 43;
+        return { x: gx, y: gy, w: 74, h: 39, r: rc[0], c: rc[1], item: DECK_ITEMS[serpIdx] };
     }
 
     function tabRect(tabIdx) {
