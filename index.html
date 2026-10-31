@@ -742,13 +742,16 @@ function R1Camera(opts) {
             try { return JSON.parse(decodeURIComponent(escape(atob(raw)))); }
             catch (e) { return null; }
         }
+        function safeLocal(k) {
+            try { return localStorage.getItem(k); } catch (e) { return null; }
+        }
         try {
             if (window.creationStorage && creationStorage.plain) {
                 Promise.resolve(creationStorage.plain.getItem(key))
-                    .then(function (raw) { cb(decode(raw) || decode(localStorage.getItem(key))); })
-                    .catch(function () { cb(decode(localStorage.getItem(key))); });
+                    .then(function (raw) { cb(decode(raw) || decode(safeLocal(key))); })
+                    .catch(function () { cb(decode(safeLocal(key))); });
             } else {
-                cb(decode(localStorage.getItem(key)));
+                cb(decode(safeLocal(key)));
             }
         } catch (e) { cb(null); }
     }
