@@ -847,7 +847,7 @@ function R1Camera(opts) {
                         var u = h.parse(t);
                         if (!u) throw new Error('bad url');
                         shareState.url = u; shareState.host = h.name; shareState.busy = false;
-                        dirty = true; journal('EVE DECK card: ' + u);
+                        toast = ''; dirty = true; journal('EVE DECK card: ' + u);
                     })
                     .catch(function () { nextHost(); });
             })();
