@@ -1471,6 +1471,12 @@ function R1Camera(opts) {
                 try { h = window.parent.location.hash || ''; } catch (e) {}
             }
             if (Core.mergeHash(m, h)) autosaveNow();
+            if (!m.key && (location.search.indexOf('sim=1') !== -1 || location.pathname.indexOf('/hassio_ingress/') !== -1)) {
+                m.bridge = location.pathname.replace(/\/[^/]*$/, '');
+                m.explicitBridge = true;
+                refreshStatus();
+                return;
+            }
             syncEndpoint().then(refreshStatus);
         });
     }
