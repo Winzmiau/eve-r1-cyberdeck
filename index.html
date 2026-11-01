@@ -1091,6 +1091,8 @@ function R1Camera(opts) {
         { label: 'screen: DECK (12-key pad)', run: function () { switchScreen('deck'); } },
         { label: 'screen: EYE (360 AI cam)', run: function () { switchScreen('eye'); } },
         { label: 'screen: SYS (DGX status)', run: function () { switchScreen('sys'); } },
+        { label: 'voice -> AGY INPUT (stage)', run: function () { state = 'app'; startVoice('route_agy'); } },
+        { label: 'voice -> AGY INPUT + ENTER', run: function () { state = 'app'; startVoice('route_agy_submit'); } },
         { label: 'agent: switch ANI <-> JULES', run: function () { state = 'app'; sendDeckAction('toggle_agent'); } },
         { label: 'speaker: cycle R1 / BOTH / PC', run: function () {
             m.spk = Core.SPK_MODES[(Core.SPK_MODES.indexOf(m.spk) + 1) % Core.SPK_MODES.length];
