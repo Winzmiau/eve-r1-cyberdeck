@@ -889,15 +889,65 @@ function R1Camera(opts) {
         return '';
     }
 
+    function handlePluginTranscript(text) {
+        var clean = String(text || '').replace(/^\s+|\s+$/g, '');
+        if (!clean) return;
+        var mode = recState.mode || 'talk_ani';
+        m.lastYou = clean;
+        setStatus(mode === 'dictate_pc' ? 'typing at PC cursor...' : 'consulting ' + m.agent.toUpperCase() + '...', true);
+        apiFetch('/api/r1/voice_text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transcript: clean, mode: mode, speaker: m.spk })
+        }).then(function (res) {
+            if (!res.ok) { m.lastReply = res.error || 'Voice error'; setStatus('voice err', false); return; }
+            if (res.agent) m.agent = res.agent;
+            m.lastReply = res.reply || '';
+            scheduleAutosave();
+            if (typeof PluginMessageHandler !== 'undefined' && PluginMessageHandler.postMessage && m.spk !== 'pc' && mode !== 'dictate_pc') {
+                try { PluginMessageHandler.postMessage(JSON.stringify({ message: m.lastReply, useLLM: false, wantsR1Response: true })); } catch (e) {}
+            } else if (res.audio_base64) {
+                playBase64Audio(res.audio_base64, res.audio_mime);
+            }
+            setStatus(mode === 'dictate_pc' ? 'typed at PC cursor!' : m.agent.toUpperCase() + ' replied', true);
+        }).catch(function (e) {
+            m.lastReply = 'Bridge error: ' + e.message;
+            setStatus('bridge offline', false);
+        });
+    }
+
+    window.onPluginMessage = function (ev) {
+        try {
+            var d = (typeof ev === 'string') ? JSON.parse(ev) : (ev && ev.data ? (typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data) : ev);
+            var txt = (d && (d.message || d.transcript || d.text || d.data)) || '';
+            if (typeof txt === 'string' && txt) handlePluginTranscript(txt);
+        } catch (e) {
+            if (typeof ev === 'string') handlePluginTranscript(ev);
+        }
+    };
+    window.addEventListener('onPluginMessage', window.onPluginMessage);
+
     function startVoice(mode) {
+        recState.mode = mode;
+        if (typeof PluginMessageHandler !== 'undefined' || window.creationStorage) {
+            m.lastReply = (mode === 'dictate_pc' ? '[PC DICTATE ARMED] ' : '[' + m.agent.toUpperCase() + ' ARMED] ') + 'Hold side PTT & speak (or use Hermes Card)!';
+            setStatus('hold PTT & speak (' + mode + ')', true);
+            say('hold PTT to speak');
+            dirty = true;
+            return;
+        }
         if (recState.active) { stopVoice(false); return; }
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            m.lastReply = 'Mic requires HTTPS Creation mode (scan install QR).';
+            m.lastReply = 'Mic requires HTTPS or Rabbit R1 Hermes Card.';
             setStatus('mic needs https', false); say('HTTPS required for mic'); return;
         }
-        recState.mode = mode;
-        setStatus('opening R1 mic...', true);
+        setStatus('opening browser mic...', true);
+        var micDone = false;
+        var micGuard = setTimeout(function () {
+            if (!micDone) { setStatus('mic blocked by WebView · use Hermes card', false); say('use Hermes card for PTT'); }
+        }, 3000);
         navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then(function (stream) {
+            micDone = true; clearTimeout(micGuard);
             recState.stream = stream; recState.chunks = [];
             var mime = pickAudioMime();
             var mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
@@ -1338,12 +1388,17 @@ function R1Camera(opts) {
         dirty = true;
     }
 
-    function onPoint(px, py) {                       // TOUCH = AIM ONLY (except camera shutter)
+    var lastTouchAt = 0;
+    function onPoint(px, py, fireImmediate) {
         if (state === 'action') {
             var L = actionList || ACTIONS;
             var row = Math.floor((py - HEADER_H - 5) / 24);
             var top = Math.max(0, Math.min(actionIndex - 4, L.length - 9));
-            if (row >= 0 && top + row < L.length) { actionIndex = top + row; dirty = true; }
+            if (row >= 0 && top + row < L.length) {
+                actionIndex = top + row;
+                if (fireImmediate) { L[actionIndex].run(); }
+                dirty = true;
+            }
             return;
         }
         if (state === 'share') { state = 'app'; dirty = true; return; }
@@ -1358,8 +1413,10 @@ function R1Camera(opts) {
         }
         if (hit.kind === 'camera_shutter') { snapVision(); return; }
         if (hit.kind.indexOf('aim_') === 0) {
+            scheduleAutosave();
+            if (fireImmediate) { onAction(); return; }
             say('aimed: ' + hit.id + ' · PTT = run');
-            scheduleAutosave(); dirty = true;
+            dirty = true;
         }
     }
 
@@ -1368,14 +1425,16 @@ function R1Camera(opts) {
     window.addEventListener('sideClick', onAction);
     window.addEventListener('longPressStart', onLongPress);
     canvas.addEventListener('mousedown', function (e) {
+        if (Date.now() - lastTouchAt < 450) return;
         var r = canvas.getBoundingClientRect();
-        onPoint((e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height);
+        onPoint((e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height, true);
     });
     canvas.addEventListener('touchstart', function (e) {
         if (!e.touches.length) return;
         e.preventDefault();
+        lastTouchAt = Date.now();
         var t = e.touches[0], r = canvas.getBoundingClientRect();
-        onPoint((t.clientX - r.left) * W / r.width, (t.clientY - r.top) * H / r.height);
+        onPoint((t.clientX - r.left) * W / r.width, (t.clientY - r.top) * H / r.height, true);
     }, { passive: false });
     document.addEventListener('keydown', function (e) {
         if (e.key === 'ArrowUp') onScroll(-1, false);
